@@ -442,3 +442,8 @@ The launcher and Memory Passport already provide the beginning of this story.
 - Keep privacy statements and medical wording accurate to what has actually been tested.
 - Run tests, analysis, an Android debug build, and a phone smoke test after each meaningful increment.
 - Update this file and `README.md` when implementation status changes.
+
+
+## 6 September 2026 — hybrid stack implementation
+See STACK_IMPLEMENTATION.md and MODEL_ASSETS.md for the current implementation and remaining setup. Validation: 56 tests passed, analyzer clean, debug build successful, installed on RMX3868 and process running. Cloud project is unconfigured; live voice and cloud validation remain pending. Offline stack changes are local and have not been pushed to GitHub.
+

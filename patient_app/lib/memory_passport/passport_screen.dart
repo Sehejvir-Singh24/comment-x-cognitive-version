@@ -86,6 +86,22 @@ class _PassportScreenState extends State<PassportScreen> {
     }
   }
 
+  Future<void> editProfile({bool makeReal = false}) async {
+    final updated = await Navigator.of(context).push<Passport>(
+      MaterialPageRoute(
+        builder: (_) => ProfileEditor(
+          passport: passport!,
+          store: widget.store,
+          makeReal: makeReal,
+        ),
+      ),
+    );
+    if (updated != null && mounted) {
+      setState(() => passport = updated);
+      widget.onChanged(updated);
+    }
+  }
+
   Future<void> enableEditing() async {
     setState(() => editing = !editing);
     if (!editing) return;
@@ -192,6 +208,13 @@ class _PassportScreenState extends State<PassportScreen> {
                       const SizedBox(height: 12),
                       Text(s.localOnly),
                       const SizedBox(height: 16),
+                      _CaregiverSetupCard(
+                        passport: p,
+                        onProfile: () => editProfile(makeReal: true),
+                        onFamily: () => edit(MemoryKind.family),
+                        onRoutine: () => edit(MemoryKind.routine),
+                      ),
+                      const SizedBox(height: 16),
                       OutlinedButton(
                         onPressed: busy ? null : enableEditing,
                         child: Text(
@@ -200,23 +223,7 @@ class _PassportScreenState extends State<PassportScreen> {
                       ),
                       if (editing)
                         TextButton(
-                          onPressed: busy
-                              ? null
-                              : () async {
-                                  final updated = await Navigator.of(context)
-                                      .push<Passport>(
-                                        MaterialPageRoute(
-                                          builder: (_) => ProfileEditor(
-                                            passport: p,
-                                            store: widget.store,
-                                          ),
-                                        ),
-                                      );
-                                  if (updated != null && mounted) {
-                                    setState(() => passport = updated);
-                                    widget.onChanged(updated);
-                                  }
-                                },
+                          onPressed: busy ? null : editProfile,
                           child: Text(s.profile),
                         ),
                       for (final kind in MemoryKind.values) ...[
@@ -305,6 +312,130 @@ class _PassportScreenState extends State<PassportScreen> {
       ),
     );
   }
+}
+
+class _CaregiverSetupCard extends StatelessWidget {
+  const _CaregiverSetupCard({
+    required this.passport,
+    required this.onProfile,
+    required this.onFamily,
+    required this.onRoutine,
+  });
+
+  final Passport passport;
+  final VoidCallback onProfile;
+  final VoidCallback onFamily;
+  final VoidCallback onRoutine;
+
+  @override
+  Widget build(BuildContext context) {
+    final profileDone = !passport.isDemo;
+    final familyDone =
+        !passport.isDemo &&
+        passport.entries.any(
+          (entry) => entry.kind == MemoryKind.family && entry.name.isNotEmpty,
+        );
+    final routineDone =
+        !passport.isDemo &&
+        passport.entries.any(
+          (entry) => entry.kind == MemoryKind.routine && entry.name.isNotEmpty,
+        );
+    final complete = [
+      profileDone,
+      familyDone,
+      routineDone,
+    ].where((done) => done).length;
+    return Card(
+      color: Theme.of(context).colorScheme.secondaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Caregiver setup',
+              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text('$complete of 3 important steps completed'),
+            const SizedBox(height: 12),
+            _SetupStep(
+              complete: profileDone,
+              title: 'Patient profile',
+              detail: 'Add the patient’s real name, age, and region.',
+              action: 'Set up profile',
+              onPressed: onProfile,
+            ),
+            _SetupStep(
+              complete: familyDone,
+              title: 'Family recognition',
+              detail: 'Add close family members and clear photos.',
+              action: 'Add family',
+              onPressed: onFamily,
+            ),
+            _SetupStep(
+              complete: routineDone,
+              title: 'Daily routine',
+              detail: 'Add familiar activities and their usual times.',
+              action: 'Add routine',
+              onPressed: onRoutine,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SetupStep extends StatelessWidget {
+  const _SetupStep({
+    required this.complete,
+    required this.title,
+    required this.detail,
+    required this.action,
+    required this.onPressed,
+  });
+
+  final bool complete;
+  final String title;
+  final String detail;
+  final String action;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          complete ? Icons.check_circle : Icons.radio_button_unchecked,
+          color: complete ? const Color(0xFF1B6B3A) : null,
+          size: 28,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(detail),
+              TextButton(
+                onPressed: onPressed,
+                child: Text(complete ? 'Edit' : action),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class PassportPhoto extends StatelessWidget {
@@ -586,9 +717,15 @@ class _EntryEditorState extends State<EntryEditor> {
 }
 
 class ProfileEditor extends StatefulWidget {
-  const ProfileEditor({super.key, required this.passport, required this.store});
+  const ProfileEditor({
+    super.key,
+    required this.passport,
+    required this.store,
+    this.makeReal = false,
+  });
   final Passport passport;
   final PassportStore store;
+  final bool makeReal;
   @override
   State<ProfileEditor> createState() => _ProfileEditorState();
 }
@@ -598,7 +735,7 @@ class _ProfileEditorState extends State<ProfileEditor> {
   late final name = TextEditingController(text: widget.passport.name);
   late final age = TextEditingController(text: widget.passport.age.toString());
   late final region = TextEditingController(text: widget.passport.region);
-  late bool demo = widget.passport.isDemo;
+  late bool demo = widget.makeReal ? false : widget.passport.isDemo;
   bool busy = false;
   String? error;
   @override
@@ -621,6 +758,13 @@ class _ProfileEditorState extends State<ProfileEditor> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (widget.makeReal && widget.passport.isDemo)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 20),
+                  child: Text(
+                    'Saving a real profile removes the sample people and routines. Add the patient’s own information next.',
+                  ),
+                ),
               for (final field in [
                 (name, s.nameLabel),
                 (age, s.ageLabel),
@@ -674,7 +818,9 @@ class _ProfileEditorState extends State<ProfileEditor> {
                           name: name.text.trim(),
                           age: int.parse(age.text.trim()),
                           region: region.text.trim(),
-                          entries: widget.passport.entries,
+                          entries: widget.makeReal && widget.passport.isDemo
+                              ? const []
+                              : widget.passport.entries,
                           isDemo: demo,
                         );
                         try {
@@ -689,7 +835,13 @@ class _ProfileEditorState extends State<ProfileEditor> {
                           }
                         }
                       },
-                child: Text(busy ? s.saving : s.save),
+                child: Text(
+                  busy
+                      ? s.saving
+                      : widget.makeReal && widget.passport.isDemo
+                      ? 'Save real profile and remove samples'
+                      : s.save,
+                ),
               ),
             ],
           ),

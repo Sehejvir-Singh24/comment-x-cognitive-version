@@ -17,11 +17,7 @@ import 'video_entry.dart';
 /// 4. Immediate recall questions.
 /// 5. Result overlay.
 class WatchScreen extends StatefulWidget {
-  const WatchScreen({
-    super.key,
-    required this.recordStore,
-    this.catalog,
-  });
+  const WatchScreen({super.key, required this.recordStore, this.catalog});
 
   final RecordStore recordStore;
 
@@ -33,7 +29,15 @@ class WatchScreen extends StatefulWidget {
   State<WatchScreen> createState() => _WatchScreenState();
 }
 
-enum _Phase { loading, delayedRecall, selection, playing, recall, result }
+enum _Phase {
+  failed,
+  loading,
+  delayedRecall,
+  selection,
+  playing,
+  recall,
+  result,
+}
 
 class _WatchScreenState extends State<WatchScreen> {
   final _engine = const CognitiveEngine();
@@ -56,6 +60,7 @@ class _WatchScreenState extends State<WatchScreen> {
   bool _saving = false;
   late Stopwatch _timer;
   _RecallResult? _result;
+  CognitiveRecord? _pendingRecord;
 
   @override
   void initState() {
@@ -70,10 +75,18 @@ class _WatchScreenState extends State<WatchScreen> {
     try {
       final records = await widget.recordStore.loadAll();
       _difficulty = _engine.difficulty(records, RecordKind.videoRecall);
-    } catch (_) {}
+    } catch (_) {
+      _saveError();
+      return;
+    }
 
     // Check for delayed recall.
-    final last = await _catalog.lastWatched();
+    VideoEntry? last;
+    try {
+      last = await _catalog.lastWatched();
+    } catch (_) {
+      _saveError();
+    }
     if (mounted) {
       setState(() {
         _lastWatched = last;
@@ -103,12 +116,12 @@ class _WatchScreenState extends State<WatchScreen> {
     final delayedQ = _lastWatched!.questions
         .where((q) => q.type == RecallType.delayed)
         .toList();
-    final expected =
-        delayedQ.isNotEmpty ? delayedQ.first.expectedAnswer : _lastWatched!.topic;
-    final correct =
-        skipped ? false : _matchAnswer(_answer.text, expected);
+    final expected = delayedQ.isNotEmpty
+        ? delayedQ.first.expectedAnswer
+        : _lastWatched!.topic;
+    final correct = skipped ? false : _matchAnswer(_answer.text, expected);
 
-    final rec = _engine.record(
+    final rec = _pendingRecord ??= _engine.record(
       kind: RecordKind.videoRecall,
       entryId: '${_lastWatched!.id}_delayed',
       correct: correct,
@@ -119,9 +132,17 @@ class _WatchScreenState extends State<WatchScreen> {
 
     try {
       await widget.recordStore.save(rec);
-    } catch (_) {}
+    } catch (_) {
+      _saveError();
+      return;
+    }
 
-    await _catalog.clearLastWatched();
+    try {
+      await _catalog.clearLastWatched();
+    } catch (_) {
+      _saveError();
+      return;
+    }
 
     if (mounted) {
       setState(() {
@@ -143,6 +164,9 @@ class _WatchScreenState extends State<WatchScreen> {
     _playerController?.dispose();
     final controller = VideoPlayerController.asset(video.assetPath);
     _playerController = controller;
+    controller.addListener(() {
+      if (mounted && _phase == _Phase.playing) setState(() {});
+    });
 
     try {
       await controller.initialize();
@@ -152,12 +176,10 @@ class _WatchScreenState extends State<WatchScreen> {
       }
     } catch (_) {
       // Video may fail to load (e.g. placeholder file).
-      // Show an error but don't crash.
+      if (mounted) setState(() => _phase = _Phase.selection);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context)!.actionFailed),
-          ),
+          SnackBar(content: Text(AppLocalizations.of(context)!.actionFailed)),
         );
       }
     }
@@ -165,8 +187,9 @@ class _WatchScreenState extends State<WatchScreen> {
 
   void _finishWatching() {
     _playerController?.pause();
-    final immediateQuestions =
-        _current!.questions.where((q) => q.type == RecallType.immediate).toList();
+    final immediateQuestions = _current!.questions
+        .where((q) => q.type == RecallType.immediate)
+        .toList();
     setState(() {
       _questionIndex = 0;
       _hintsShown = 0;
@@ -176,6 +199,7 @@ class _WatchScreenState extends State<WatchScreen> {
         ..start();
       _phase = _Phase.recall;
       _result = null;
+      _pendingRecord = null;
     });
     // If no immediate questions, go to result.
     if (immediateQuestions.isEmpty) {
@@ -199,10 +223,11 @@ class _WatchScreenState extends State<WatchScreen> {
 
     final questions = _immediateQuestions;
     final q = questions[_questionIndex];
-    final correct =
-        skipped ? false : _matchAnswer(_answer.text, q.expectedAnswer);
+    final correct = skipped
+        ? false
+        : _matchAnswer(_answer.text, q.expectedAnswer);
 
-    final rec = _engine.record(
+    final rec = _pendingRecord ??= _engine.record(
       kind: RecordKind.videoRecall,
       entryId: '${_current!.id}_q$_questionIndex',
       correct: correct,
@@ -213,10 +238,32 @@ class _WatchScreenState extends State<WatchScreen> {
 
     try {
       await widget.recordStore.save(rec);
-    } catch (_) {}
+    } catch (_) {
+      _saveError();
+      return;
+    }
 
     // Mark as watched for delayed recall next time.
-    await _catalog.markWatched(_current!);
+    if (_questionIndex + 1 < questions.length) {
+      if (!mounted) return;
+      setState(() {
+        _pendingRecord = null;
+        _questionIndex++;
+        _saving = false;
+        _answer.clear();
+        _hintsShown = 0;
+        _timer
+          ..reset()
+          ..start();
+      });
+      return;
+    }
+    try {
+      await _catalog.markWatched(_current!);
+    } catch (_) {
+      _saveError();
+      return;
+    }
 
     if (mounted) {
       setState(() {
@@ -238,17 +285,29 @@ class _WatchScreenState extends State<WatchScreen> {
     final firstWord = target.split(' ').first;
     if (answer == firstWord) return true;
     // Accept if expected is contained in answer.
-    if (answer.contains(target)) return true;
-    if (target.contains(answer) && answer.length >= 3) return true;
+
     return false;
   }
 
   // ---------- navigation helpers ---------------------------------------------
 
+  void _saveError() {
+    if (!mounted) return;
+    setState(() => _saving = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Could not save or load this exercise. Please try again.',
+        ),
+      ),
+    );
+  }
+
   void _goToSelection() {
     setState(() {
       _phase = _Phase.selection;
       _result = null;
+      _pendingRecord = null;
       _answer.clear();
       _hintsShown = 0;
       _questionIndex = 0;
@@ -261,16 +320,15 @@ class _WatchScreenState extends State<WatchScreen> {
     if (_current == null) return [];
     return [
       s.videoHint1,
-      s.videoHint2(_current!.topic[0].toUpperCase()),
+      s.videoHint2(
+        _immediateQuestions[_questionIndex].expectedAnswer[0].toUpperCase(),
+      ),
     ];
   }
 
   List<String> _delayedHints(AppLocalizations s) {
     if (_lastWatched == null) return [];
-    return [
-      s.videoHint1,
-      s.videoHint2(_lastWatched!.topic[0].toUpperCase()),
-    ];
+    return [s.videoHint1, s.videoHint2(_lastWatched!.topic[0].toUpperCase())];
   }
 
   // ---------- build ----------------------------------------------------------
@@ -286,7 +344,13 @@ class _WatchScreenState extends State<WatchScreen> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 650),
             child: switch (_phase) {
-              _Phase.loading => const Center(child: CircularProgressIndicator()),
+              _Phase.failed => TextButton(
+                onPressed: _init,
+                child: const Text('Could not load exercises. Tap to retry.'),
+              ),
+              _Phase.loading => const Center(
+                child: CircularProgressIndicator(),
+              ),
               _Phase.delayedRecall => _buildDelayedRecall(s),
               _Phase.selection => _buildSelection(s),
               _Phase.playing => _buildPlayer(s),
@@ -370,17 +434,17 @@ class _WatchScreenState extends State<WatchScreen> {
             ),
             icon: const Icon(Icons.lightbulb_outline),
             label: Text(s.showHint(_hintsShown + 1)),
-            onPressed: _saving
-                ? null
-                : () => setState(() => _hintsShown++),
+            onPressed: _saving ? null : () => setState(() => _hintsShown++),
           ),
         const SizedBox(height: 20),
 
         ElevatedButton(
           style: ElevatedButton.styleFrom(
             minimumSize: const Size.fromHeight(72),
-            textStyle:
-                const TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
+            textStyle: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           onPressed: (_saving || _answer.text.trim().isEmpty)
               ? null
@@ -413,10 +477,7 @@ class _WatchScreenState extends State<WatchScreen> {
         ),
         const SizedBox(height: 24),
         for (final video in VideoCatalog.entries) ...[
-          _VideoCard(
-            video: video,
-            onTap: () => _selectVideo(video),
-          ),
+          _VideoCard(video: video, onTap: () => _selectVideo(video)),
           const SizedBox(height: 16),
         ],
       ],
@@ -462,7 +523,7 @@ class _WatchScreenState extends State<WatchScreen> {
               Expanded(
                 child: VideoProgressIndicator(
                   controller,
-                  allowScrubbing: true,
+                  allowScrubbing: false,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                 ),
               ),
@@ -478,12 +539,20 @@ class _WatchScreenState extends State<WatchScreen> {
         ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
             minimumSize: const Size.fromHeight(72),
-            textStyle:
-                const TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
+            textStyle: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           icon: const Icon(Icons.check, size: 28),
           label: Text(s.finishedWatching),
-          onPressed: _finishWatching,
+          onPressed:
+              initialized &&
+                  !controller.value.hasError &&
+                  controller.value.duration > Duration.zero &&
+                  controller.value.position >= controller.value.duration
+              ? _finishWatching
+              : null,
         ),
       ],
     );
@@ -555,17 +624,17 @@ class _WatchScreenState extends State<WatchScreen> {
             ),
             icon: const Icon(Icons.lightbulb_outline),
             label: Text(s.showHint(_hintsShown + 1)),
-            onPressed: _saving
-                ? null
-                : () => setState(() => _hintsShown++),
+            onPressed: _saving ? null : () => setState(() => _hintsShown++),
           ),
         const SizedBox(height: 20),
 
         ElevatedButton(
           style: ElevatedButton.styleFrom(
             minimumSize: const Size.fromHeight(72),
-            textStyle:
-                const TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
+            textStyle: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           onPressed: (_saving || _answer.text.trim().isEmpty)
               ? null
@@ -621,8 +690,10 @@ class _WatchScreenState extends State<WatchScreen> {
         ElevatedButton(
           style: ElevatedButton.styleFrom(
             minimumSize: const Size.fromHeight(72),
-            textStyle:
-                const TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
+            textStyle: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           onPressed: _goToSelection,
           child: Text(s.watchAnother),
@@ -706,3 +777,4 @@ class _RecallResult {
   final bool correct;
   final String label;
 }
+

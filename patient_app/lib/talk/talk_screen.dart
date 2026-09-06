@@ -1,4 +1,17 @@
+import '../sync/sync_service.dart';
+
+import 'dart:async';
+
+import '../voice/speech_service.dart';
+import '../family/family_screen.dart';
+import '../videos/watch_screen.dart';
+import '../memory_passport/passport_screen.dart';
+import '../memory_passport/passport_store.dart';
+import '../cognition/record_store.dart';
+import '../launcher/launcher_bridge.dart';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../ai/saathi_companion_service.dart';
 import '../l10n/app_localizations.dart';
@@ -8,11 +21,7 @@ import '../memory_passport/passport.dart';
 /// Designed specifically for elderly accessibility: large text, high contrast,
 /// easy quick-prompt chips, and a warm, patient voice.
 class TalkScreen extends StatefulWidget {
-  const TalkScreen({
-    super.key,
-    required this.passport,
-    this.service,
-  });
+  const TalkScreen({super.key, required this.passport, this.service});
 
   final Passport passport;
   final SaathiCompanionService? service;
@@ -21,23 +30,40 @@ class TalkScreen extends StatefulWidget {
   State<TalkScreen> createState() => _TalkScreenState();
 }
 
-class _TalkScreenState extends State<TalkScreen> {
+class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
   late final SaathiCompanionService _service;
   final List<CompanionMessage> _messages = [];
   final TextEditingController _controller = TextEditingController();
+  final FocusNode _inputFocus = FocusNode();
   final ScrollController _scrollController = ScrollController();
   bool _loading = false;
+  bool _foreground = true;
+  SpeechService? _speech;
+  StreamSubscription<String>? _transcripts;
+  bool _listening = false;
+  bool _voiceBusy = false;
+  bool _consent = false;
 
   @override
   void initState() {
     super.initState();
     _service = widget.service ?? SaathiCompanionService();
     _service.initChat(widget.passport);
+    WidgetsBinding.instance.addObserver(this);
+    if (widget.service == null) {
+      _service
+          .loadConsent()
+          .then((_) {
+            if (mounted) setState(() => _consent = _service.router.consent);
+          })
+          .catchError((Object _) {});
+    }
 
     // Initial greeting from Saathi
     _messages.add(
       CompanionMessage(
-        text: 'Hello ${widget.passport.name}. I am Saathi, your companion. How can I help you today?',
+        text:
+            'Hello ${widget.passport.name}. I am Saathi, your companion. How can I help you today?',
         isUser: false,
         timestamp: DateTime.now(),
       ),
@@ -46,7 +72,11 @@ class _TalkScreenState extends State<TalkScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _transcripts?.cancel();
+    _speech?.dispose();
     _controller.dispose();
+    _inputFocus.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -69,6 +99,11 @@ class _TalkScreenState extends State<TalkScreen> {
     _scrollToBottom();
 
     final reply = await _service.sendMessage(cleanText);
+    if (mounted && _foreground && _speech != null) {
+      _speech!.speak(reply).catchError((Object _) {
+        if (mounted) _notice('Voice is unavailable. You can read the reply.');
+      });
+    }
 
     if (mounted) {
       setState(() {
@@ -82,6 +117,196 @@ class _TalkScreenState extends State<TalkScreen> {
         _loading = false;
       });
       _scrollToBottom();
+      _navigate(_service.lastAction);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    if (!_foreground) {
+      _speech?.cancelListening();
+      _speech?.stopSpeaking();
+      if (mounted) setState(() => _listening = false);
+    }
+  }
+
+  void _notice(String text) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+
+  void _openGboardVoiceTyping() {
+    _inputFocus.requestFocus();
+    SystemChannels.textInput.invokeMethod<void>('TextInput.show');
+  }
+
+  Future<void> _toggleVoice() async {
+    if (_voiceBusy || _loading) return;
+    setState(() => _voiceBusy = true);
+    try {
+      _speech ??= SpeechService(
+        onListeningExpired: () {
+          if (mounted) {
+            setState(() => _listening = false);
+            _notice(
+              'Microphone stopped after 30 seconds. You can send the text below.',
+            );
+          }
+        },
+      );
+      _transcripts ??= _speech!.transcripts.stream.listen((text) {
+        if (mounted) setState(() => _controller.text = text);
+      });
+      if (_listening) {
+        final text = await _speech!.stopListening();
+        if (!mounted) return;
+        setState(() => _listening = false);
+        if (text.trim().isEmpty) {
+          _notice('I did not hear that. Please try again or type below.');
+        } else {
+          await _sendMessage(text);
+        }
+      } else {
+        await _speech!.startListening();
+        if (mounted) setState(() => _listening = true);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _listening = false);
+        _notice('Voice is unavailable. Please use the buttons or keyboard.');
+      }
+    } finally {
+      if (mounted) setState(() => _voiceBusy = false);
+    }
+  }
+
+  Future<void> _syncSettings() async {
+    final value = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cloud backup — caregiver setup'),
+        content: const Text(
+          'Allow saved Passport text and exercise results to sync to protected cloud storage for this app? Photos and voice recordings stay on the phone. Turning this off stops future uploads; it does not delete existing cloud copies.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Turn off'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Allow backup'),
+          ),
+        ],
+      ),
+    );
+    if (value == null) return;
+    try {
+      await SyncService.setEnabled(value);
+      if (mounted) {
+        _notice(value ? 'Cloud backup enabled.' : 'Cloud backup disabled.');
+      }
+    } catch (_) {
+      if (mounted) {
+        _notice(
+          'Cloud backup is unavailable. Your data remains saved on this phone.',
+        );
+      }
+    }
+  }
+
+  Future<void> _onlineSettings() async {
+    final value = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Online Saathi — caregiver setup'),
+        content: const Text(
+          'When enabled, your request and relevant saved facts are sent to Google Gemini. Audio stays on this phone. General questions do not include your Memory Passport. You can turn this off at any time. Gemini may make mistakes.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep offline'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Allow online replies'),
+          ),
+        ],
+      ),
+    );
+    if (value == null) return;
+    try {
+      await _service.setConsent(value);
+      if (mounted) setState(() => _consent = value);
+    } catch (_) {
+      if (mounted) _notice('Could not save this setting. Please try again.');
+    }
+  }
+
+  Future<void> _navigate(CompanionAction? action) async {
+    if (action == null || !mounted) return;
+    final store = PassportStore();
+    switch (action) {
+      case CompanionAction.family:
+        await Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => FamilyScreen(
+              passport: widget.passport,
+              passportStore: store,
+              recordStore: RecordStore(),
+            ),
+          ),
+        );
+      case CompanionAction.watch:
+        await Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => WatchScreen(recordStore: RecordStore()),
+          ),
+        );
+      case CompanionAction.passport:
+        await Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => PassportScreen(
+              store: store,
+              onChanged: (p) => _service.initChat(p),
+            ),
+          ),
+        );
+      case CompanionAction.apps:
+        try {
+          final bridge = LauncherBridge();
+          final apps = await bridge.apps();
+          if (!mounted) return;
+          await Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => Scaffold(
+                appBar: AppBar(title: const Text('Phone Apps')),
+                body: ListView(
+                  children: apps
+                      .map(
+                        (app) => ElevatedButton(
+                          onPressed: () async {
+                            try {
+                              await bridge.openApp(app.packageName);
+                            } catch (_) {
+                              if (mounted) _notice('That app is unavailable.');
+                            }
+                          },
+                          child: Text(app.label),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            ),
+          );
+        } catch (_) {
+          if (mounted) _notice('Phone Apps are unavailable.');
+        }
     }
   }
 
@@ -103,6 +328,18 @@ class _TalkScreenState extends State<TalkScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        actions: [
+          IconButton(
+            onPressed: () => _speech?.stopSpeaking(),
+            tooltip: 'Stop speaking',
+            icon: const Icon(Icons.volume_off),
+          ),
+          IconButton(
+            onPressed: _syncSettings,
+            tooltip: 'Caregiver cloud backup',
+            icon: const Icon(Icons.cloud_outlined),
+          ),
+        ],
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -122,11 +359,69 @@ class _TalkScreenState extends State<TalkScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            ValueListenableBuilder<CompanionMode>(
+              valueListenable: _service.router.mode,
+              builder: (_, mode, child) => Text(
+                mode == CompanionMode.checking
+                    ? 'Checking connection...'
+                    : mode == CompanionMode.online
+                    ? 'Online Saathi'
+                    : 'Offline Saathi',
+              ),
+            ),
+            TextButton(
+              onPressed: _onlineSettings,
+              child: Text(
+                _consent
+                    ? 'Online replies allowed — change'
+                    : 'Online replies off — caregiver settings',
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: FilledButton.icon(
+                onPressed: _voiceBusy || _loading ? null : _toggleVoice,
+                icon: Icon(_listening ? Icons.stop : Icons.mic),
+                label: Text(
+                  _voiceBusy
+                      ? 'Preparing voice...'
+                      : _listening
+                      ? 'Finish speaking'
+                      : 'Google speech (prefer offline)',
+                ),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(64),
+                ),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(24, 4, 24, 0),
+              child: Text(
+                'Uses Google speech. It prefers the phone’s offline English pack.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: OutlinedButton.icon(
+                onPressed: _loading ? null : _openGboardVoiceTyping,
+                icon: const Icon(Icons.keyboard_voice_outlined),
+                label: const Text('Use Gboard voice typing'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(56),
+                  textStyle: const TextStyle(fontSize: 18),
+                ),
+              ),
+            ),
             // Chat history list
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 20,
+                ),
                 itemCount: _messages.length,
                 itemBuilder: (context, index) {
                   final msg = _messages[index];
@@ -138,7 +433,10 @@ class _TalkScreenState extends State<TalkScreen> {
             // Loading indicator
             if (_loading)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 20),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 8,
+                  horizontal: 20,
+                ),
                 child: Row(
                   children: [
                     const SizedBox(
@@ -170,19 +468,26 @@ class _TalkScreenState extends State<TalkScreen> {
                   _QuickChip(
                     label: s?.quickPromptFamily ?? 'Tell me about my family',
                     icon: Icons.people_outline,
-                    onTap: () => _sendMessage(s?.quickPromptFamily ?? 'Tell me about my family'),
+                    onTap: () => _sendMessage(
+                      s?.quickPromptFamily ?? 'Tell me about my family',
+                    ),
                   ),
                   const SizedBox(width: 10),
                   _QuickChip(
                     label: s?.quickPromptDay ?? 'What is my routine today?',
                     icon: Icons.calendar_today_outlined,
-                    onTap: () => _sendMessage(s?.quickPromptDay ?? 'What is my routine today?'),
+                    onTap: () => _sendMessage(
+                      s?.quickPromptDay ?? 'What is my routine today?',
+                    ),
                   ),
                   const SizedBox(width: 10),
                   _QuickChip(
-                    label: s?.quickPromptGardening ?? "Let's talk about gardening",
+                    label:
+                        s?.quickPromptGardening ?? "Let's talk about gardening",
                     icon: Icons.yard_outlined,
-                    onTap: () => _sendMessage(s?.quickPromptGardening ?? "Let's talk about gardening"),
+                    onTap: () => _sendMessage(
+                      s?.quickPromptGardening ?? "Let's talk about gardening",
+                    ),
                   ),
                 ],
               ),
@@ -199,21 +504,34 @@ class _TalkScreenState extends State<TalkScreen> {
                   Expanded(
                     child: TextField(
                       controller: _controller,
+                      focusNode: _inputFocus,
                       textInputAction: TextInputAction.send,
                       onSubmitted: _sendMessage,
                       style: const TextStyle(fontSize: 18),
                       decoration: InputDecoration(
                         hintText: s?.talkPlaceholder ?? 'Ask Saathi anything…',
-                        hintStyle: TextStyle(color: Colors.grey[600], fontSize: 18),
+                        hintStyle: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 18,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: Color(0xFF185A49), width: 2),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF185A49),
+                            width: 2,
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: Color(0xFF185A49), width: 2.5),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF185A49),
+                            width: 2.5,
+                          ),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
                       ),
                     ),
                   ),

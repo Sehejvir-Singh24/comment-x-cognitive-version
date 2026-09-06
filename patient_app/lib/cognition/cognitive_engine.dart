@@ -1,3 +1,5 @@
+import 'package:uuid/uuid.dart';
+
 import 'cognitive_record.dart';
 
 /// Stateless, deterministic, rule-based cognitive difficulty engine.
@@ -47,15 +49,14 @@ class CognitiveEngine {
     required int responseMs,
     required int hintsUsed,
     required int difficulty,
-  }) =>
-      CognitiveRecord(
-        id: DateTime.now().microsecondsSinceEpoch.toString(),
-        kind: kind,
-        entryId: entryId,
-        correct: correct,
-        responseMs: responseMs,
-        hintsUsed: hintsUsed,
-        difficulty: difficulty,
-        timestamp: DateTime.now(),
-      );
+  }) => CognitiveRecord(
+    id: const Uuid().v4(),
+    kind: kind,
+    entryId: entryId,
+    correct: correct,
+    responseMs: responseMs,
+    hintsUsed: hintsUsed,
+    difficulty: difficulty,
+    timestamp: DateTime.now(),
+  );
 }

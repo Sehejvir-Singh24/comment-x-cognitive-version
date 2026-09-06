@@ -42,7 +42,7 @@ void main() {
   test(
     'corrupt storage raises an error and is never replaced by demo data',
     () async {
-      await store.load();
+      await Directory('${folder.path}/memory_passport').create(recursive: true);
       final file = File('${folder.path}/memory_passport/passport.json');
       await file.writeAsString('broken');
       await expectLater(store.load(), throwsA(isA<FormatException>()));
@@ -61,7 +61,7 @@ void main() {
     );
   });
   test('unknown versions do not overwrite saved data', () async {
-    await store.load();
+    await Directory('${folder.path}/memory_passport').create(recursive: true);
     final file = File('${folder.path}/memory_passport/passport.json');
     final json = Passport.demo().toJson()..['schemaVersion'] = 2;
     await file.writeAsString(jsonEncode(json));

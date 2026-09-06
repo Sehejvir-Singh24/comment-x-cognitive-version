@@ -1,58 +1,32 @@
-# AI Cognitive Companion — Saathi
+# Saathi — AI Cognitive Companion
 
-Launcher foundation and Memory Passport increment from the latest Flutter PRD in `docs/PRD.md`.
-The current user instruction overrides steps 2–3 in the PRD: project setup, Android HOME integration, Flutter home UI, then platform bridge.
+Android cognitive launcher built in Flutter/Dart, with Kotlin for Android system integration.
 
-## Implemented
+Current features: HOME launcher, installed-app navigation, editable local Memory Passport, Family Recognition, Video Recall, and Talk to Saathi. The September stack update adds Drift persistence, English offline speech, deterministic offline replies, and optional Firebase AI Logic and background uploads.
 
-- Android-only Flutter/Dart patient app; Kotlin contains only Android system integration.
-- HOME and LAUNCHER intent registration. Android's own consent UI selects the home app.
-- Large, scrolling, high-contrast Flutter home screen with Mr. Bora's explicitly labelled demo profile.
-- Installed launchable app list, app opening, and a blank phone dialer (no invented family numbers or direct calls).
-- HOME intent returns to the first Flutter route. Default-home status refreshes when resuming.
-- English ARB localization and Flutter localization generation; Assamese remains the later PRD milestone.
-- Memory Passport with editable profile, family relationships and photos, places, memories, routines, medicine reference notes, and favourite activities.
-- Explicit caregiver edit mode, confirmed removal, required-field validation, and local save/error states. This edit mode is a UI boundary, not authentication.
-- Photos are selected through Android's picker and copied into app-private storage. No cloud services, microphone access, usage access, or background services. Android automatic backup is disabled.
-- Watch, Family, Photos, Medicine, My Day, and voice buttons explicitly explain that those later modules are unavailable. No medication reminders are active.
+See [STACK_IMPLEMENTATION.md](STACK_IMPLEMENTATION.md) for current scope, setup and known limitations. Earlier milestones in PROJECT_CONTEXT.md are historical; the latest addendum takes precedence. The original PRD remains in docs/PRD.md.
 
-## Development
-
-Flutter 3.47.2 / Dart 3.13.2 was installed locally under `.tools/flutter` without changing the global PATH.
-From PowerShell in this folder:
-
+## Run
+From patient_app, use the project-local Flutter executable:
 ```powershell
-cd patient_app
-$env:PUB_CACHE = 'D:\projects\comment x cognitive version\.pub-cache'
 & '..\.tools\flutter\bin\flutter.bat' pub get
 & '..\.tools\flutter\bin\flutter.bat' analyze
 & '..\.tools\flutter\bin\flutter.bat' test
 & '.\run-on-phone.ps1'
 ```
 
-The Android debug APK builds successfully with Android SDK 36 and NDK 28.2.13676358. A project-local package cache is used because this machine's global Dart cache was unreadable during Android compilation. Android CLI's current license check may remain marked "unknown" in Flutter even after the tools are installed.
+A fresh checkout needs English model assets first: run scripts/fetch-voice-models.ps1 from the repository. See MODEL_ASSETS.md before redistribution.
 
-## Device acceptance check
+Cloud features default off and need Firebase configuration. Use run-on-phone.ps1 -CloudConfig cloud-config.local.json after following STACK_IMPLEMENTATION.md. Do not supply a raw Gemini secret.
 
-1. Build/install the debug APK on an Android phone or emulator.
-2. Open Saathi from the existing launcher. Confirm all controls remain reachable at maximum system font size.
-3. Tap Choose home screen; cancel. Confirm Saathi does not claim to be the default.
-4. Choose Saathi using the Android prompt; press HOME. Confirm Saathi appears.
-5. Open Phone apps and another installed app; press HOME. Confirm the main Saathi screen returns.
-6. Open phone and return without making a call.
-7. Repeat with airplane mode enabled. No network should be needed.
-8. Restore the prior launcher via Android Settings > Apps > Default apps > Home app.
+## Latest validation
+6 September 2026: 56 tests passed; Flutter analysis clean; Android debug APK built and installed on authorized RMX3868. App process remained running and no matching startup fatal error appeared in the sampled logs. Live voice quality, performance and configured Firebase integration remain to be verified. Universal debug APK is 384,564,959 bytes, including voice assets and multiple native architectures; this is not a release-size benchmark.
 
-Host-side tests cover large-text navigation, bridge dispatch for role selection and app opening, and native error propagation. They mock Android calls and do not establish native-device correctness.
+## Device checks
+- Confirm HOME navigation, Passport data and existing photos still work.
+- In Talk to Saathi, keep online replies off. Tap to speak, allow microphone access and say “Open Family”; tap Finish speaking. Check recognition and navigation.
+- Ask a saved-family question and check the spoken reply. Stop speaking should interrupt playback.
+- Background the app during speech and verify microphone/playback stop.
+- Complete a video and both immediate questions; delayed recall should become available after five minutes.
+- Check large system text and airplane-mode operation.
 
-## Next increment
-
-Launcher device checks were confirmed by the user. Next is Family Recognition in the PRD's order. UsageStats is optional and intentionally not requested yet.
-
-## Memory Passport checks
-
-Open Memory Passport, then Edit with caregiver. Edit Rahul's details and choose a photo; save and reopen the screen. Confirm the details persist after restarting Saathi and with the network off. Check About me to edit the name, age and region. Routine times use 24-hour HH:MM. Medicines are reference notes only; this increment schedules no reminders and records no adherence.
-
-The provisional storage adapter writes a versioned JSON snapshot atomically in the app-private documents directory. UI/models are separate so Drift/SQLite can replace this adapter at the PRD's database milestone. Corrupt or newer-format files are preserved and shown as an error, never silently reset to the demo. Imported photos have private copies; original gallery photos are never modified. Removing a saved photo removes its private copy. Cancelled imports can leave unused local copies until later cleanup; clearing app data removes them along with the passport.
-
-Path-provider platform implementations are constrained to Android 2.2.x and Foundation 2.5.x because newer native build hooks fail when the Windows Flutter SDK path includes spaces. Keep the lockfile and use run-on-phone.ps1 to preserve the project-local dependency cache.

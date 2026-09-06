@@ -7,7 +7,9 @@ import 'package:patient_app/memory_passport/passport.dart';
 import 'package:patient_app/talk/talk_screen.dart';
 
 class FakeCompanionService extends SaathiCompanionService {
-  FakeCompanionService({this.cannedReply = 'Hello! I remember Rahul visits on Sunday.'});
+  FakeCompanionService({
+    this.cannedReply = 'Hello! I remember Rahul visits on Sunday.',
+  });
 
   final String cannedReply;
   String? lastPrompt;
@@ -34,10 +36,7 @@ Widget buildTestableTalkScreen({
       GlobalCupertinoLocalizations.delegate,
     ],
     supportedLocales: const [Locale('en')],
-    home: TalkScreen(
-      passport: passport,
-      service: service,
-    ),
+    home: TalkScreen(passport: passport, service: service),
   );
 }
 
@@ -46,10 +45,7 @@ void main() {
     testWidgets('renders initial greeting and quick chips', (tester) async {
       final service = FakeCompanionService();
       await tester.pumpWidget(
-        buildTestableTalkScreen(
-          passport: Passport.demo(),
-          service: service,
-        ),
+        buildTestableTalkScreen(passport: Passport.demo(), service: service),
       );
       await tester.pumpAndSettle();
 
@@ -58,40 +54,58 @@ void main() {
       expect(find.textContaining('Hello Mr. Bora'), findsOneWidget);
 
       // Verify quick chips (may be scrolled slightly horizontally)
-      expect(find.text('Tell me about my family', skipOffstage: false), findsOneWidget);
-      expect(find.text('What is my routine today?', skipOffstage: false), findsOneWidget);
-      expect(find.text("Let's talk about gardening", skipOffstage: false), findsOneWidget);
-    });
-
-    testWidgets('tapping quick chip sends message and displays companion reply', (tester) async {
-      final service = FakeCompanionService(cannedReply: 'Rahul is your son. He loves playing cricket with you.');
-      await tester.pumpWidget(
-        buildTestableTalkScreen(
-          passport: Passport.demo(),
-          service: service,
-        ),
+      expect(
+        find.text('Tell me about my family', skipOffstage: false),
+        findsOneWidget,
       );
-      await tester.pumpAndSettle();
-
-      // Tap the family quick chip
-      await tester.tap(find.text('Tell me about my family'));
-      await tester.pump(); // Start loading
-      await tester.pumpAndSettle(); // Finish response
-
-      // User prompt should be visible
-      expect(find.text('Tell me about my family'), findsNWidgets(2)); // in chip & in bubble
-      // AI reply should be visible
-      expect(find.text('Rahul is your son. He loves playing cricket with you.'), findsOneWidget);
-      expect(service.lastPrompt, 'Tell me about my family');
+      expect(
+        find.text('What is my routine today?', skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(
+        find.text("Let's talk about gardening", skipOffstage: false),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('typing and pressing send button delivers custom message', (tester) async {
-      final service = FakeCompanionService(cannedReply: 'Gardening is wonderful! You love caring for your plants.');
+    testWidgets(
+      'tapping quick chip sends message and displays companion reply',
+      (tester) async {
+        final service = FakeCompanionService(
+          cannedReply: 'Rahul is your son. He loves playing cricket with you.',
+        );
+        await tester.pumpWidget(
+          buildTestableTalkScreen(passport: Passport.demo(), service: service),
+        );
+        await tester.pumpAndSettle();
+
+        // Tap the family quick chip
+        await tester.tap(find.text('Tell me about my family'));
+        await tester.pump(); // Start loading
+        await tester.pumpAndSettle(); // Finish response
+
+        // User prompt should be visible
+        expect(
+          find.text('Tell me about my family'),
+          findsNWidgets(2),
+        ); // in chip & in bubble
+        // AI reply should be visible
+        expect(
+          find.text('Rahul is your son. He loves playing cricket with you.'),
+          findsOneWidget,
+        );
+        expect(service.lastPrompt, 'Tell me about my family');
+      },
+    );
+
+    testWidgets('typing and pressing send button delivers custom message', (
+      tester,
+    ) async {
+      final service = FakeCompanionService(
+        cannedReply: 'Gardening is wonderful! You love caring for your plants.',
+      );
       await tester.pumpWidget(
-        buildTestableTalkScreen(
-          passport: Passport.demo(),
-          service: service,
-        ),
+        buildTestableTalkScreen(passport: Passport.demo(), service: service),
       );
       await tester.pumpAndSettle();
 
@@ -102,7 +116,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Do you know my hobbies?'), findsOneWidget);
-      expect(find.text('Gardening is wonderful! You love caring for your plants.'), findsOneWidget);
+      expect(
+        find.text('Gardening is wonderful! You love caring for your plants.'),
+        findsOneWidget,
+      );
       expect(service.lastPrompt, 'Do you know my hobbies?');
     });
   });

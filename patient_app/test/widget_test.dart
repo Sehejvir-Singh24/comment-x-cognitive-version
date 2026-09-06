@@ -195,7 +195,10 @@ void main() {
       // Use skipOffstage: false since the Skip button may be scrolled off
       // the test viewport in the ListView.
       expect(find.text('Who is this?', skipOffstage: false), findsOneWidget);
-      expect(find.text('That is my answer', skipOffstage: false), findsOneWidget);
+      expect(
+        find.text('That is my answer', skipOffstage: false),
+        findsOneWidget,
+      );
       expect(find.text('I am not sure', skipOffstage: false), findsOneWidget);
       expect(tester.takeException(), isNull);
     },

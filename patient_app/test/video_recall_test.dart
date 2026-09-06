@@ -25,14 +25,22 @@ void main() {
 
     test('every video has at least one immediate and one delayed question', () {
       for (final video in VideoCatalog.entries) {
-        final immediate =
-            video.questions.where((q) => q.type == RecallType.immediate);
-        final delayed =
-            video.questions.where((q) => q.type == RecallType.delayed);
-        expect(immediate.isNotEmpty, isTrue,
-            reason: '${video.id} should have immediate questions');
-        expect(delayed.isNotEmpty, isTrue,
-            reason: '${video.id} should have delayed questions');
+        final immediate = video.questions.where(
+          (q) => q.type == RecallType.immediate,
+        );
+        final delayed = video.questions.where(
+          (q) => q.type == RecallType.delayed,
+        );
+        expect(
+          immediate.isNotEmpty,
+          isTrue,
+          reason: '${video.id} should have immediate questions',
+        );
+        expect(
+          delayed.isNotEmpty,
+          isTrue,
+          reason: '${video.id} should have delayed questions',
+        );
       }
     });
   });
@@ -40,10 +48,12 @@ void main() {
   group('last-watched marker', () {
     late Directory folder;
     late VideoCatalog catalog;
+    late DateTime now;
 
     setUp(() async {
       folder = await Directory.systemTemp.createTemp('saathi-video-test-');
-      catalog = VideoCatalog(directory: () async => folder);
+      now = DateTime(2026, 9, 6);
+      catalog = VideoCatalog(directory: () async => folder, now: () => now);
     });
 
     tearDown(() async {
@@ -57,6 +67,8 @@ void main() {
     test('markWatched persists and lastWatched retrieves', () async {
       final video = VideoCatalog.entries.first;
       await catalog.markWatched(video);
+      expect(await catalog.lastWatched(), isNull);
+      now = now.add(VideoCatalog.recallDelay);
 
       final last = await catalog.lastWatched();
       expect(last, isNotNull);
@@ -66,18 +78,21 @@ void main() {
     test('clearLastWatched removes the marker', () async {
       final video = VideoCatalog.entries.first;
       await catalog.markWatched(video);
+      expect(await catalog.lastWatched(), isNull);
+      now = now.add(VideoCatalog.recallDelay);
       expect(await catalog.lastWatched(), isNotNull);
 
       await catalog.clearLastWatched();
       expect(await catalog.lastWatched(), isNull);
     });
 
-    test('markWatched overwrites previous entry', () async {
+    test('pending videos are retained in order', () async {
       await catalog.markWatched(VideoCatalog.entries[0]);
       await catalog.markWatched(VideoCatalog.entries[1]);
+      now = now.add(VideoCatalog.recallDelay);
 
       final last = await catalog.lastWatched();
-      expect(last!.id, VideoCatalog.entries[1].id);
+      expect(last!.id, VideoCatalog.entries[0].id);
     });
   });
 

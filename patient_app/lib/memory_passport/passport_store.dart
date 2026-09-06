@@ -1,4 +1,5 @@
-import 'dart:convert';
+import '../storage/app_database.dart';
+
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
@@ -27,37 +28,17 @@ class PassportStore {
     return Directory('${base.path}/memory_passport').create(recursive: true);
   }
 
-  Future<Passport> load() => _exclusive(() async {
-    final folder = await _folder();
-    final file = File('${folder.path}/passport.json');
-    if (!await file.exists()) {
-      final demo = Passport.demo();
-      await _write(demo);
-      return demo;
-    }
-    // A corrupt existing file must never silently reset patient data.
-    return Passport.fromJson(
-      jsonDecode(await file.readAsString()) as Map<String, dynamic>,
-    );
-  });
+  Future<Passport> load() =>
+      AppDatabase.use(_directory, (db) => db.loadPassport());
 
   Future<void> save(Passport passport) => _exclusive(() => _write(passport));
 
   Future<void> _write(Passport passport) async {
-    final folder = await _folder();
-    final current = File('${folder.path}/passport.json');
-    final previousPhotos = <String>{};
-    if (await current.exists()) {
-      final previous = Passport.fromJson(
-        jsonDecode(await current.readAsString()) as Map<String, dynamic>,
-      );
-      previousPhotos.addAll(
-        previous.entries.map((e) => e.photo).whereType<String>(),
-      );
-    }
-    final temp = File('${folder.path}/passport.pending');
-    await temp.writeAsString(jsonEncode(passport.toJson()), flush: true);
-    await temp.rename('${folder.path}/passport.json');
+    final previousPhotos = await AppDatabase.use(_directory, (db) async {
+      final previous = await db.loadPassport();
+      await db.savePassport(passport);
+      return previous.entries.map((e) => e.photo).whereType<String>().toSet();
+    });
     final kept = passport.entries
         .map((e) => e.photo)
         .whereType<String>()

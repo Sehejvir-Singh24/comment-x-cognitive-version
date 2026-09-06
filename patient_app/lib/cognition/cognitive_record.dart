@@ -1,7 +1,7 @@
 /// The kind of cognitive exercise that produced a [CognitiveRecord].
 ///
 /// Each kind tracks difficulty independently via [CognitiveEngine].
-enum RecordKind { familyRecognition, videoRecall }
+enum RecordKind { familyRecognition, videoRecall, routineRecall }
 
 /// One recorded outcome from a cognitive exercise.
 ///
@@ -20,7 +20,7 @@ class CognitiveRecord {
     required this.timestamp,
   });
 
-  /// Unique opaque identifier — microseconds-since-epoch as a string.
+  /// Unique opaque identifier — UUID for new records; legacy identifiers remain valid.
   final String id;
 
   /// Which type of cognitive exercise produced this record.
@@ -45,16 +45,16 @@ class CognitiveRecord {
   final DateTime timestamp;
 
   Map<String, dynamic> toJson() => {
-        'schemaVersion': 1,
-        'id': id,
-        'kind': kind.name,
-        'entryId': entryId,
-        'correct': correct,
-        'responseMs': responseMs,
-        'hintsUsed': hintsUsed,
-        'difficulty': difficulty,
-        'timestamp': timestamp.toIso8601String(),
-      };
+    'schemaVersion': 1,
+    'id': id,
+    'kind': kind.name,
+    'entryId': entryId,
+    'correct': correct,
+    'responseMs': responseMs,
+    'hintsUsed': hintsUsed,
+    'difficulty': difficulty,
+    'timestamp': timestamp.toIso8601String(),
+  };
 
   factory CognitiveRecord.fromJson(Map<String, dynamic> json) {
     if (json['schemaVersion'] != 1) {

@@ -1,3 +1,5 @@
+import 'sync/sync_service.dart';
+
 import 'package:flutter/material.dart';
 
 import 'cognition/record_store.dart';
@@ -8,9 +10,16 @@ import 'launcher/launcher_bridge.dart';
 import 'memory_passport/passport.dart';
 import 'memory_passport/passport_screen.dart';
 import 'memory_passport/passport_store.dart';
+import 'medicine/medicine_screen.dart';
+import 'medicine/reminder_bridge.dart';
+import 'my_day/my_day_screen.dart';
 import 'talk/talk_screen.dart';
 
-void main() => runApp(const CompanionApp());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const CompanionApp());
+  SyncService.initialize().catchError((Object _) {});
+}
 
 class CompanionApp extends StatelessWidget {
   const CompanionApp({super.key});
@@ -70,6 +79,7 @@ class _LauncherHomeState extends State<LauncherHome>
   Future<void> refreshPassport() async {
     try {
       final value = await passportStore.load();
+      await ReminderBridge.schedule(value);
       if (mounted) setState(() => passport = value);
     } catch (_) {
       // Launcher remains usable; Memory Passport displays storage errors.
@@ -209,43 +219,64 @@ class _LauncherHomeState extends State<LauncherHome>
                     minimumSize: const Size.fromHeight(96),
                     textStyle: const TextStyle(fontSize: 26),
                   ),
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => TalkScreen(
-                        passport: passport ?? Passport.demo(),
-                      ),
-                    ),
-                  ),
+                  onPressed: passport == null
+                      ? null
+                      : () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => TalkScreen(passport: passport!),
+                          ),
+                        ),
                   icon: const Icon(Icons.mic_none, size: 36),
                   label: Text(s.talk),
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => PassportScreen(
-                        store: passportStore,
-                        onChanged: (value) {
-                          if (mounted) setState(() => passport = value);
-                        },
-                      ),
-                    ),
-                  ),
+                  onPressed: passport == null
+                      ? null
+                      : () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => PassportScreen(
+                              store: passportStore,
+                              onChanged: (value) {
+                                if (mounted) setState(() => passport = value);
+                              },
+                            ),
+                          ),
+                        ),
                   icon: const Icon(Icons.book_outlined, size: 32),
                   label: Text(s.passport),
                 ),
                 const SizedBox(height: 12),
+                if (passport == null)
+                  TextButton(
+                    onPressed: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => PassportScreen(
+                            store: passportStore,
+                            onChanged: (value) =>
+                                setState(() => passport = value),
+                          ),
+                        ),
+                      );
+                      await refreshPassport();
+                    },
+                    child: const Text(
+                      'Open Memory Passport to check saved data',
+                    ),
+                  ),
                 // Watch — Video Recall (this increment)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: ElevatedButton.icon(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => WatchScreen(
-                          recordStore: recordStore,
-                        ),
-                      ),
-                    ),
+                    onPressed: passport == null
+                        ? null
+                        : () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  WatchScreen(recordStore: recordStore),
+                            ),
+                          ),
                     icon: const Icon(Icons.play_circle_outline, size: 32),
                     label: Text(s.watch),
                   ),
@@ -254,15 +285,17 @@ class _LauncherHomeState extends State<LauncherHome>
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: ElevatedButton.icon(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => FamilyScreen(
-                          passport: passport ?? Passport.demo(),
-                          passportStore: passportStore,
-                          recordStore: recordStore,
-                        ),
-                      ),
-                    ),
+                    onPressed: passport == null
+                        ? null
+                        : () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => FamilyScreen(
+                                passport: passport!,
+                                passportStore: passportStore,
+                                recordStore: recordStore,
+                              ),
+                            ),
+                          ),
                     icon: const Icon(Icons.people_outline, size: 32),
                     label: Text(s.family),
                   ),
@@ -276,20 +309,33 @@ class _LauncherHomeState extends State<LauncherHome>
                     label: Text(s.photos),
                   ),
                 ),
-                // Medicine — placeholder; no reminders active
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: ElevatedButton.icon(
-                    onPressed: () => upcoming(s.medicine),
+                    onPressed: passport == null
+                        ? null
+                        : () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => MedicineScreen(
+                                passport: passport!,
+                                recordStore: recordStore,
+                              ),
+                            ),
+                          ),
                     icon: const Icon(Icons.medication_outlined, size: 32),
                     label: Text(s.medicine),
                   ),
                 ),
-                // My Day — placeholder
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: ElevatedButton.icon(
-                    onPressed: () => upcoming(s.myDay),
+                    onPressed: passport == null
+                        ? null
+                        : () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => MyDayScreen(passport: passport!),
+                            ),
+                          ),
                     icon: const Icon(Icons.today_outlined, size: 32),
                     label: Text(s.myDay),
                   ),

@@ -30,7 +30,7 @@ class _FakeRecordStore extends RecordStore {
 /// the last-watched marker in memory.
 class _FakeVideoCatalog extends VideoCatalog {
   _FakeVideoCatalog({this.fakeLastWatched})
-      : super(directory: () async => Directory.systemTemp);
+    : super(directory: () async => Directory.systemTemp);
 
   VideoEntry? fakeLastWatched;
 
@@ -56,10 +56,10 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   Widget buildApp(WatchScreen screen) => MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: screen,
-      );
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    home: screen,
+  );
 
   testWidgets('WatchScreen shows video selection when no previous video', (
     tester,
@@ -68,10 +68,9 @@ void main() {
     final catalog = _FakeVideoCatalog(); // no last-watched
 
     await tester.runAsync(() async {
-      await tester.pumpWidget(buildApp(WatchScreen(
-        recordStore: recordStore,
-        catalog: catalog,
-      )));
+      await tester.pumpWidget(
+        buildApp(WatchScreen(recordStore: recordStore, catalog: catalog)),
+      );
       await Future<void>.delayed(const Duration(milliseconds: 200));
     });
     await tester.pump();
@@ -97,10 +96,9 @@ void main() {
     );
 
     await tester.runAsync(() async {
-      await tester.pumpWidget(buildApp(WatchScreen(
-        recordStore: recordStore,
-        catalog: catalog,
-      )));
+      await tester.pumpWidget(
+        buildApp(WatchScreen(recordStore: recordStore, catalog: catalog)),
+      );
       await Future<void>.delayed(const Duration(milliseconds: 200));
     });
     await tester.pump();
@@ -115,52 +113,44 @@ void main() {
       findsOneWidget,
     );
     // Skip button should be available.
-    expect(
-      find.text("I don't remember", skipOffstage: false),
-      findsOneWidget,
-    );
+    expect(find.text("I don't remember", skipOffstage: false), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-    'Skipping delayed recall saves a record and shows result',
-    (tester) async {
-      final recordStore = _FakeRecordStore();
-      final catalog = _FakeVideoCatalog(
-        fakeLastWatched: VideoCatalog.entries.first,
+  testWidgets('Skipping delayed recall saves a record and shows result', (
+    tester,
+  ) async {
+    final recordStore = _FakeRecordStore();
+    final catalog = _FakeVideoCatalog(
+      fakeLastWatched: VideoCatalog.entries.first,
+    );
+
+    await tester.runAsync(() async {
+      await tester.pumpWidget(
+        buildApp(WatchScreen(recordStore: recordStore, catalog: catalog)),
       );
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    });
+    await tester.pump();
 
-      await tester.runAsync(() async {
-        await tester.pumpWidget(buildApp(WatchScreen(
-          recordStore: recordStore,
-          catalog: catalog,
-        )));
-        await Future<void>.delayed(const Duration(milliseconds: 200));
-      });
-      await tester.pump();
+    // Ensure the skip button is visible, then tap it.
+    final skipFinder = find.text("I don't remember");
+    await tester.ensureVisible(skipFinder);
+    await tester.pump();
+    await tester.runAsync(() async {
+      await tester.tap(skipFinder);
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    });
+    await tester.pump();
 
-      // Ensure the skip button is visible, then tap it.
-      final skipFinder = find.text("I don't remember");
-      await tester.ensureVisible(skipFinder);
-      await tester.pump();
-      await tester.runAsync(() async {
-        await tester.tap(skipFinder);
-        await Future<void>.delayed(const Duration(milliseconds: 200));
-      });
-      await tester.pump();
-
-      // Should show the incorrect result.
-      expect(
-        find.text('Not quite.', skipOffstage: false),
-        findsOneWidget,
-      );
-      // A record should have been saved.
-      expect(recordStore.saved.length, 1);
-      expect(recordStore.saved.first.correct, false);
-      expect(recordStore.saved.first.kind, RecordKind.videoRecall);
-      expect(tester.takeException(), isNull);
-    },
-  );
+    // Should show the incorrect result.
+    expect(find.text('Not quite.', skipOffstage: false), findsOneWidget);
+    // A record should have been saved.
+    expect(recordStore.saved.length, 1);
+    expect(recordStore.saved.first.correct, false);
+    expect(recordStore.saved.first.kind, RecordKind.videoRecall);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'WatchScreen result shows Watch another and Back to home buttons',
@@ -171,10 +161,9 @@ void main() {
       );
 
       await tester.runAsync(() async {
-        await tester.pumpWidget(buildApp(WatchScreen(
-          recordStore: recordStore,
-          catalog: catalog,
-        )));
+        await tester.pumpWidget(
+          buildApp(WatchScreen(recordStore: recordStore, catalog: catalog)),
+        );
         await Future<void>.delayed(const Duration(milliseconds: 200));
       });
       await tester.pump();
@@ -189,14 +178,8 @@ void main() {
       });
       await tester.pump();
 
-      expect(
-        find.text('Watch another', skipOffstage: false),
-        findsOneWidget,
-      );
-      expect(
-        find.text('Back to home', skipOffstage: false),
-        findsOneWidget,
-      );
+      expect(find.text('Watch another', skipOffstage: false), findsOneWidget);
+      expect(find.text('Back to home', skipOffstage: false), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

@@ -5,9 +5,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:patient_app/cognition/cognitive_record.dart';
 import 'package:patient_app/cognition/record_store.dart';
 
+int nextRecordId = 0;
 CognitiveRecord _makeRecord({bool correct = true, int hintsUsed = 0}) =>
     CognitiveRecord(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      id: (nextRecordId++).toString(),
       kind: RecordKind.familyRecognition,
       entryId: 'rahul',
       correct: correct,
@@ -22,8 +23,7 @@ void main() {
   late RecordStore store;
 
   setUp(() async {
-    folder =
-        await Directory.systemTemp.createTemp('saathi-records-test-');
+    folder = await Directory.systemTemp.createTemp('saathi-records-test-');
     store = RecordStore(directory: () async => folder);
   });
 
@@ -82,9 +82,8 @@ void main() {
   });
 
   test('corrupt file throws FormatException and preserves data', () async {
-    await store.save(_makeRecord());
-    final file =
-        File('${folder.path}/memory_passport/records.json');
+    await Directory('${folder.path}/memory_passport').create(recursive: true);
+    final file = File('${folder.path}/memory_passport/records.json');
     await file.writeAsString('corrupt data here');
 
     await expectLater(store.loadAll(), throwsA(isA<FormatException>()));
@@ -93,19 +92,18 @@ void main() {
   });
 
   test('unknown schema version throws FormatException', () async {
-    await store.save(_makeRecord());
-    final file =
-        File('${folder.path}/memory_passport/records.json');
-    final json = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+    await Directory('${folder.path}/memory_passport').create(recursive: true);
+    final file = File('${folder.path}/memory_passport/records.json');
+    final json = <String, dynamic>{
+      'schemaVersion': 1,
+      'records': [_makeRecord().toJson()],
+    };
     json['schemaVersion'] = 9;
     await file.writeAsString(jsonEncode(json));
 
     await expectLater(store.loadAll(), throwsA(isA<FormatException>()));
     // File must be preserved
-    expect(
-      (jsonDecode(await file.readAsString()) as Map)['schemaVersion'],
-      9,
-    );
+    expect((jsonDecode(await file.readAsString()) as Map)['schemaVersion'], 9);
   });
 
   test('concurrent initial saves do not lose records', () async {

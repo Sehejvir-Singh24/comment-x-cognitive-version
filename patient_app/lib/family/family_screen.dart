@@ -1,3 +1,5 @@
+import '../memory_passport/passport_screen.dart';
+
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -7,7 +9,7 @@ import '../cognition/cognitive_record.dart';
 import '../cognition/record_store.dart';
 import '../l10n/app_localizations.dart';
 import '../memory_passport/passport.dart';
-import '../memory_passport/passport_screen.dart';
+
 import '../memory_passport/passport_store.dart';
 
 /// Entry point for the Family Recognition exercise.
@@ -123,7 +125,9 @@ class _NoPhotosView extends StatelessWidget {
                   Text(
                     s.noFamilyPhotos,
                     style: const TextStyle(
-                        fontSize: 26, fontWeight: FontWeight.bold),
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
@@ -140,7 +144,14 @@ class _NoPhotosView extends StatelessWidget {
                     ),
                     icon: const Icon(Icons.edit_outlined, size: 28),
                     label: Text(s.addPhotoInPassport),
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () => Navigator.of(context).pushReplacement(
+                      MaterialPageRoute<void>(
+                        builder: (_) => PassportScreen(
+                          store: passportStore,
+                          onChanged: (_) {},
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -246,7 +257,13 @@ class _QuestionViewState extends State<_QuestionView> {
     try {
       await widget.recordStore.save(rec);
     } catch (_) {
-      // Record loss is non-critical for the patient experience; continue.
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save. Please try again.')),
+        );
+      }
+      return;
     }
 
     if (mounted) {
@@ -362,9 +379,7 @@ class _QuestionViewState extends State<_QuestionView> {
             ),
             icon: const Icon(Icons.lightbulb_outline),
             label: Text(s.showHint(_hintsShown + 1)),
-            onPressed: _saving
-                ? null
-                : () => setState(() => _hintsShown++),
+            onPressed: _saving ? null : () => setState(() => _hintsShown++),
           ),
         const SizedBox(height: 20),
 
@@ -372,7 +387,10 @@ class _QuestionViewState extends State<_QuestionView> {
         ElevatedButton(
           style: ElevatedButton.styleFrom(
             minimumSize: const Size.fromHeight(72),
-            textStyle: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
+            textStyle: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           onPressed: (_saving || _answer.text.trim().isEmpty)
               ? null
@@ -425,7 +443,9 @@ class _ResultView extends StatelessWidget {
     final color = data.correct
         ? const Color(0xFF1B6B3A)
         : Theme.of(context).colorScheme.error;
-    final icon = data.correct ? Icons.check_circle_outline : Icons.cancel_outlined;
+    final icon = data.correct
+        ? Icons.check_circle_outline
+        : Icons.cancel_outlined;
     final label = data.correct ? s.correctAnswer : s.incorrectAnswer;
     final name = data.entry.values['name'] ?? '';
 
@@ -455,7 +475,10 @@ class _ResultView extends StatelessWidget {
         ElevatedButton(
           style: ElevatedButton.styleFrom(
             minimumSize: const Size.fromHeight(72),
-            textStyle: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
+            textStyle: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           onPressed: onTryAnother,
           child: Text(s.tryAnother),

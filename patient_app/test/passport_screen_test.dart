@@ -122,4 +122,42 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('demo Passport guides the caregiver through real-patient setup', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      testApp(PassportScreen(store: FakeStore(), onChanged: (_) {})),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Caregiver setup'), findsOneWidget);
+    expect(find.text('0 of 3 important steps completed'), findsOneWidget);
+    await tester.tap(find.text('Set up profile'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ProfileEditor), findsOneWidget);
+  });
+
+  testWidgets('real-profile setup clears only the sample entries', (
+    tester,
+  ) async {
+    final store = FakeStore();
+    await tester.pumpWidget(
+      testApp(
+        ProfileEditor(passport: store.value, store: store, makeReal: true),
+      ),
+    );
+    await tester.enterText(find.byType(TextFormField).at(0), 'Asha Devi');
+    await tester.enterText(find.byType(TextFormField).at(1), '70');
+    await tester.enterText(find.byType(TextFormField).at(2), 'Guwahati');
+    final save = find.widgetWithText(
+      ElevatedButton,
+      'Save real profile and remove samples',
+    );
+    await tester.ensureVisible(save);
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+    expect(store.value.isDemo, isFalse);
+    expect(store.value.name, 'Asha Devi');
+    expect(store.value.entries, isEmpty);
+  });
 }

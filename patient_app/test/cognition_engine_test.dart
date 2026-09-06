@@ -3,10 +3,7 @@ import 'package:patient_app/cognition/cognitive_engine.dart';
 import 'package:patient_app/cognition/cognitive_record.dart';
 
 /// Constructs a [CognitiveRecord] for testing with minimal boilerplate.
-CognitiveRecord _rec({
-  required RecordKind kind,
-  required bool correct,
-}) =>
+CognitiveRecord _rec({required RecordKind kind, required bool correct}) =>
     CognitiveRecord(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       kind: kind,
@@ -34,23 +31,25 @@ void main() {
     );
   });
 
-  test('returns hard difficulty (3) when more than 80 % of last 5 are correct',
-      () {
-    final records = List.generate(5, (_) => _rec(kind: kind, correct: true));
-    expect(engine.difficulty(records, kind), 3);
+  test(
+    'returns hard difficulty (3) when more than 80 % of last 5 are correct',
+    () {
+      final records = List.generate(5, (_) => _rec(kind: kind, correct: true));
+      expect(engine.difficulty(records, kind), 3);
 
-    // 4/5 = 80 % → should still be hard (> 80 is hard, exactly 80 is medium)
-    final records4 = [
-      ...List.generate(4, (_) => _rec(kind: kind, correct: true)),
-      _rec(kind: kind, correct: false),
-    ];
-    // 4/5 = 0.8 — not strictly > 0.8, so should be medium
-    expect(engine.difficulty(records4, kind), 2);
+      // 4/5 = 80 % → should still be hard (> 80 is hard, exactly 80 is medium)
+      final records4 = [
+        ...List.generate(4, (_) => _rec(kind: kind, correct: true)),
+        _rec(kind: kind, correct: false),
+      ];
+      // 4/5 = 0.8 — not strictly > 0.8, so should be medium
+      expect(engine.difficulty(records4, kind), 2);
 
-    // 5/5 = 1.0 → hard
-    final records5 = List.generate(5, (_) => _rec(kind: kind, correct: true));
-    expect(engine.difficulty(records5, kind), 3);
-  });
+      // 5/5 = 1.0 → hard
+      final records5 = List.generate(5, (_) => _rec(kind: kind, correct: true));
+      expect(engine.difficulty(records5, kind), 3);
+    },
+  );
 
   test('returns easy difficulty (1) when fewer than 40 % are correct', () {
     // 1/5 = 20 % → easy
@@ -113,18 +112,18 @@ void main() {
     expect(rec.id, isNotEmpty);
   });
 
-  test('videoRecall difficulty is computed independently from familyRecognition',
-      () {
+  test('videoRecall difficulty is computed independently from familyRecognition', () {
     // 5 correct familyRecognition + 0 videoRecall → video should be medium (2)
-    final familyOnly =
-        List.generate(5, (_) => _rec(kind: kind, correct: true));
+    final familyOnly = List.generate(5, (_) => _rec(kind: kind, correct: true));
     expect(engine.difficulty(familyOnly, RecordKind.videoRecall), 2);
 
     // Mix: 5 correct familyRecognition + 5 wrong videoRecall → video = easy
     final mixed = [
       ...familyOnly,
       ...List.generate(
-          5, (_) => _rec(kind: RecordKind.videoRecall, correct: false)),
+        5,
+        (_) => _rec(kind: RecordKind.videoRecall, correct: false),
+      ),
     ];
     expect(engine.difficulty(mixed, RecordKind.videoRecall), 1);
     // familyRecognition should still be hard

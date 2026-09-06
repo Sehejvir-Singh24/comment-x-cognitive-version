@@ -1,4 +1,9 @@
 import 'dart:io';
+
+import 'package:drift/drift.dart';
+
+import '../storage/app_database.dart';
+
 import 'package:path_provider/path_provider.dart';
 
 import 'video_entry.dart';
@@ -8,10 +13,14 @@ import 'video_entry.dart';
 /// Also manages the "last watched" marker used for delayed recall.
 /// Replace the file-based marker with Drift at the database milestone.
 class VideoCatalog {
-  VideoCatalog({Future<Directory> Function()? directory})
-      : _directory = directory ?? getApplicationDocumentsDirectory;
+  VideoCatalog({
+    Future<Directory> Function()? directory,
+    DateTime Function()? now,
+  }) : _directory = directory ?? getApplicationDocumentsDirectory,
+       _now = now ?? DateTime.now;
 
   final Future<Directory> Function() _directory;
+  final DateTime Function() _now;
 
   /// All available videos.  Order matches the selection UI.
   static const List<VideoEntry> entries = [
@@ -99,42 +108,28 @@ class VideoCatalog {
 
   // ---------- last-watched marker ----------
 
-  Future<File> _markerFile() async {
-    final base = await _directory();
-    final folder =
-        await Directory('${base.path}/memory_passport').create(recursive: true);
-    return File('${folder.path}/last_watched.txt');
-  }
-
-  /// Returns the [VideoEntry] the patient watched most recently, or `null`.
-  Future<VideoEntry?> lastWatched() async {
-    try {
-      final file = await _markerFile();
-      if (!await file.exists()) return null;
-      final id = (await file.readAsString()).trim();
-      return byId(id);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  /// Records [video] as the most recently watched.
-  Future<void> markWatched(VideoEntry video) async {
-    try {
-      final file = await _markerFile();
-      await file.writeAsString(video.id, flush: true);
-    } catch (_) {
-      // Non-critical — delayed recall just won't trigger next time.
-    }
-  }
-
-  /// Clears the last-watched marker (e.g. after delayed recall is answered).
-  Future<void> clearLastWatched() async {
-    try {
-      final file = await _markerFile();
-      if (await file.exists()) await file.delete();
-    } catch (_) {
-      // Non-critical.
-    }
-  }
+  static const recallDelay = Duration(minutes: 5);
+  Future<VideoEntry?> lastWatched() => AppDatabase.use(_directory, (db) async {
+    final rows = await db
+        .customSelect(
+          'SELECT id FROM video_sessions WHERE completed = 0 AND due_at <= ? ORDER BY watched_at LIMIT 1',
+          variables: [Variable(_now().millisecondsSinceEpoch)],
+        )
+        .get();
+    return rows.isEmpty ? null : byId(rows.first.read<String>('id'));
+  });
+  Future<void> markWatched(VideoEntry video) =>
+      AppDatabase.use(_directory, (db) async {
+        final now = _now().millisecondsSinceEpoch;
+        await db.customStatement(
+          'INSERT OR REPLACE INTO video_sessions VALUES (?, ?, ?, 0)',
+          [video.id, now, now + recallDelay.inMilliseconds],
+        );
+      });
+  Future<void> clearLastWatched() => AppDatabase.use(_directory, (db) async {
+    await db.customStatement(
+      'UPDATE video_sessions SET completed = 1 WHERE id = (SELECT id FROM video_sessions WHERE completed = 0 AND due_at <= ? ORDER BY watched_at LIMIT 1)',
+      [_now().millisecondsSinceEpoch],
+    );
+  });
 }
