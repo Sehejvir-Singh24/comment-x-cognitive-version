@@ -1,0 +1,137 @@
+{
+  "@@locale": "en",
+  "appTitle": "Saathi",
+  "goodMorning": "Good morning",
+  "goodAfternoon": "Good afternoon",
+  "goodEvening": "Good evening",
+  "demoName": "Mr. Bora",
+  "demoLabel": "Demo profile · Launcher preview",
+  "talk": "Talk to Saathi",
+  "watch": "Watch",
+  "family": "Family",
+  "photos": "Photos",
+  "medicine": "Medicine",
+  "myDay": "My Day",
+  "phone": "Open phone",
+  "phoneApps": "Phone apps",
+  "noApps": "No phone apps are available.",
+  "homeEnabled": "Saathi is your home screen.",
+  "homeNotEnabled": "Saathi is not your default home screen yet.",
+  "chooseHome": "Choose home screen",
+  "comingSoon": "This activity is not available in this first launcher preview.",
+  "backHome": "Back to home",
+  "actionFailed": "Could not open this. Please try again.",
+  "passport": "Memory Passport",
+  "caregiverEdit": "Edit with caregiver",
+  "finishEditing": "Done editing",
+  "profile": "About me",
+  "places": "Important places",
+  "memories": "Memories",
+  "routines": "Daily routines",
+  "medicines": "Medicines",
+  "activities": "Favourite activities",
+  "addEntry": "Add",
+  "editEntry": "Edit",
+  "save": "Save on this phone",
+  "cancel": "Cancel",
+  "removeEntry": "Remove",
+  "removeQuestion": "Remove this entry from the passport?",
+  "emptySection": "Nothing added yet.",
+  "localOnly": "Saved on this phone. Works offline.",
+  "medicineNotice": "These are reference notes only. Reminders are not active.",
+  "nameLabel": "Name",
+  "ageLabel": "Age",
+  "regionLabel": "Region",
+  "relationshipLabel": "Relationship",
+  "visitsLabel": "Visits",
+  "sharedActivityLabel": "Shared activity",
+  "notesLabel": "Details",
+  "timeLabel": "Time (24-hour HH:MM)",
+  "doseLabel": "Caregiver’s medicine instructions",
+  "requiredField": "Please enter this.",
+  "invalidAge": "Enter an age from 1 to 120.",
+  "invalidTime": "Enter a time such as 08:00 or 20:00.",
+  "choosePhoto": "Choose photo",
+  "removePhoto": "Remove photo",
+  "noPhoto": "No photo added",
+  "saveFailed": "Could not save. Your changes are still here. Please try again.",
+  "loadFailed": "Could not open the saved passport. Your existing data has been kept.",
+  "retry": "Try again",
+  "demoProfile": "Use demo profile label",
+  "demoPassport": "Demo profile",
+  "savedPassport": "Personal profile",
+  "recoveredPhoto": "Your selected photo was recovered. Add its details to save it.",
+  "discardQuestion": "Leave without saving your changes?",
+  "keepEditing": "Keep editing",
+  "discard": "Leave without saving",
+  "photoFailed": "Could not open the photo. Please choose it again.",
+  "saving": "Saving…",
+  "saved": "Saved on this phone.",
+
+  "whoIsThis": "Who is this?",
+  "typeYourAnswer": "Type your answer",
+  "confirmAnswer": "That is my answer",
+  "skipAnswer": "I am not sure",
+  "hintLabel": "Hint",
+  "hint1Template": "This person is from your family.",
+  "hint2Template": "This person is your {relationship}.",
+  "@hint2Template": {
+    "placeholders": {
+      "relationship": {"type": "String"}
+    }
+  },
+  "hint3Template": "Their name starts with {letter}.",
+  "@hint3Template": {
+    "placeholders": {
+      "letter": {"type": "String"}
+    }
+  },
+  "showHint": "Show hint {number}",
+  "@showHint": {
+    "placeholders": {
+      "number": {"type": "int"}
+    }
+  },
+  "correctAnswer": "Correct!",
+  "incorrectAnswer": "Not quite.",
+  "tryAnother": "Try another",
+  "noFamilyPhotos": "No family photos yet.",
+  "noFamilyPhotosDetail": "A caregiver can add photos to family members in the Memory Passport.",
+  "addPhotoInPassport": "Open Memory Passport",
+
+  "watchTitle": "Watch",
+  "chooseVideo": "Choose a video to watch",
+  "finishedWatching": "Finished watching",
+  "delayedRecallPrompt": "Earlier you watched a video.",
+  "delayedRecallQuestion": "Do you remember what it was about?",
+  "immediateRecallPrompt": "You just watched: {title}",
+  "@immediateRecallPrompt": {
+    "placeholders": {
+      "title": {"type": "String"}
+    }
+  },
+  "dontRemember": "I don't remember",
+  "watchAnother": "Watch another",
+  "videoHint1": "You watched a video about a daily activity.",
+  "videoHint2": "The topic starts with the letter {letter}.",
+  "@videoHint2": {
+    "placeholders": {
+      "letter": {"type": "String"}
+    }
+  },
+
+  "talkSubtitle": "Your personal memory companion",
+  "talkWelcome": "Hello {name}. I am Saathi. How can I help you today?",
+  "@talkWelcome": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "talkPlaceholder": "Ask Saathi anything…",
+  "quickPromptFamily": "Tell me about my family",
+  "quickPromptDay": "What is my routine today?",
+  "quickPromptGardening": "Let's talk about gardening",
+  "quickPromptMusic": "How is the weather today?",
+  "send": "Send",
+  "saathiThinking": "Saathi is thinking…"
+}
