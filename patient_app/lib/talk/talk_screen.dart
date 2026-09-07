@@ -28,12 +28,16 @@ class TalkScreen extends StatefulWidget {
     this.service,
     this.speech,
     this.startListening = false,
+    this.openingMessage,
   });
 
   final Passport passport;
   final SaathiCompanionService? service;
   final SpeechService? speech;
   final bool startListening;
+  /// When provided, this message is shown as Saathi's first line and spoken
+  /// aloud before listening starts (used for check-in prompts).
+  final String? openingMessage;
 
   @override
   State<TalkScreen> createState() => _TalkScreenState();
@@ -61,7 +65,7 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
     super.initState();
     _service = widget.service ?? SaathiCompanionService();
     _speech = widget.speech;
-    _service.initChat(widget.passport);
+    _service.initChat(widget.passport, openingMessage: widget.openingMessage);
     WidgetsBinding.instance.addObserver(this);
     if (widget.service == null) {
       _service
@@ -72,20 +76,19 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
           .catchError((Object _) {});
     }
 
-    // Initial greeting from Saathi
+    // Initial greeting or check-in question from Saathi
+    final greeting = widget.openingMessage ??
+        'Hello ${widget.passport.name}. I am Saathi, your companion. How can I help you today?';
     _messages.add(
       CompanionMessage(
-        text:
-            'Hello ${widget.passport.name}. I am Saathi, your companion. How can I help you today?',
+        text: greeting,
         isUser: false,
         timestamp: DateTime.now(),
       ),
     );
     if (widget.startListening) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        // Speak the greeting aloud so the user hears Saathi immediately.
-        final greeting =
-            'Hello ${widget.passport.name}. I am Saathi, your companion. How can I help you today?';
+        // Speak the greeting / check-in question aloud before listening.
         try {
           await _speech?.speak(greeting);
         } catch (_) {}
@@ -290,11 +293,6 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
 
   void _notice(String text) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
-
-  void _openGboardVoiceTyping() {
-    _inputFocus.requestFocus();
-    SystemChannels.textInput.invokeMethod<void>('TextInput.show');
-  }
 
   Future<void> _toggleVoice() async {
     if (_voiceConversation) {
@@ -603,18 +601,6 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
                 'Gemini answers questions. Google speech is used for voice input.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: OutlinedButton.icon(
-                onPressed: _loading ? null : _openGboardVoiceTyping,
-                icon: const Icon(Icons.keyboard_voice_outlined),
-                label: const Text('Use Gboard voice typing'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(56),
-                  textStyle: const TextStyle(fontSize: 18),
-                ),
               ),
             ),
             // Chat history list

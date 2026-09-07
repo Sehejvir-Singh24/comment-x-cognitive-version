@@ -5,6 +5,7 @@ import 'sync/sync_service.dart';
 import 'package:flutter/material.dart';
 
 import 'cognition/record_store.dart';
+import 'cognition/cognitive_games_screen.dart';
 import 'caregiver/caregiver_dashboard_screen.dart';
 import 'family/family_screen.dart';
 import 'videos/watch_screen.dart';
@@ -135,6 +136,7 @@ class _LauncherHomeState extends State<LauncherHome>
     if (!mounted || !_foreground || ModalRoute.of(context)?.isCurrent != true) {
       return;
     }
+    if (passport == null) return;
     const questions = [
       'Would you like to do a short memory question?',
       'What would you like to do next?',
@@ -142,17 +144,17 @@ class _LauncherHomeState extends State<LauncherHome>
     ];
     final question = questions[_checkInIndex++ % questions.length];
     setState(() => _checkInQuestion = question);
-    try {
-      await _voice.speak('Saathi check-in. $question');
-    } catch (_) {
-      // The written prompt remains available if Android voice is unavailable.
-    }
+    await _openTalk('Saathi check-in. $question');
   }
 
-  Future<void> _openTalk() => Navigator.of(context).push(
+  Future<void> _openTalk([String? openingMessage]) => Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) =>
-          TalkScreen(passport: passport!, speech: _voice, startListening: true),
+      builder: (_) => TalkScreen(
+        passport: passport!,
+        speech: _voice,
+        startListening: true,
+        openingMessage: openingMessage,
+      ),
     ),
   );
 
@@ -428,7 +430,13 @@ class _LauncherHomeState extends State<LauncherHome>
                           const SizedBox(height: 6),
                           Text(_checkInQuestion!),
                           TextButton.icon(
-                            onPressed: passport == null ? null : _openTalk,
+                            onPressed: passport == null
+                                ? null
+                                : () => _openTalk(
+                                    _checkInQuestion != null
+                                        ? 'Saathi check-in. $_checkInQuestion'
+                                        : null,
+                                  ),
                             icon: const Icon(Icons.mic),
                             label: const Text('Answer Saathi'),
                           ),
@@ -436,6 +444,78 @@ class _LauncherHomeState extends State<LauncherHome>
                       ),
                     ),
                   ),
+                // ── Memory Games (Brain Gym) Card ────────────────────────
+                Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: const BorderSide(color: Color(0xFF185A49), width: 1.5),
+                  ),
+                  color: const Color(0xFFF1F8F5),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: passport == null
+                        ? null
+                        : () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => CognitiveGamesScreen(
+                                  passport: passport!,
+                                  recordStore: recordStore,
+                                ),
+                              ),
+                            ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 60,
+                            height: 60,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF185A49),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: const Icon(
+                              Icons.psychology_rounded,
+                              color: Colors.white,
+                              size: 36,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Memory Games & Brain Gym',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF153F34),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Medicine, family photos, and routine recall quiz',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    color: Colors.grey[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            color: Color(0xFF185A49),
+                            size: 20,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
                 const Text(
                   'More ways Saathi can help',
                   style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),

@@ -353,6 +353,8 @@ String _recordLabel(RecordKind kind) => switch (kind) {
   RecordKind.familyRecognition => 'Family recognition',
   RecordKind.videoRecall => 'Video recall',
   RecordKind.routineRecall => 'Routine recall',
+  RecordKind.medicineRecall => 'Medication recall',
+  RecordKind.episodicRecall => 'Life memories',
 };
 
 String _when(DateTime timestamp, DateTime now) {

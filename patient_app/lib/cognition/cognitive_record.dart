@@ -1,7 +1,7 @@
 /// The kind of cognitive exercise that produced a [CognitiveRecord].
 ///
 /// Each kind tracks difficulty independently via [CognitiveEngine].
-enum RecordKind { familyRecognition, videoRecall, routineRecall }
+enum RecordKind { familyRecognition, videoRecall, routineRecall, medicineRecall, episodicRecall }
 
 /// One recorded outcome from a cognitive exercise.
 ///

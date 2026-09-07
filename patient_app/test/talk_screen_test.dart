@@ -15,7 +15,7 @@ class FakeCompanionService extends SaathiCompanionService {
   String? lastPrompt;
 
   @override
-  void initChat(Passport passport) {}
+  void initChat(Passport passport, {String? openingMessage}) {}
 
   @override
   Future<String> sendMessage(String text) async {
@@ -121,6 +121,36 @@ void main() {
         findsOneWidget,
       );
       expect(service.lastPrompt, 'Do you know my hobbies?');
+    });
+
+    testWidgets('displays custom openingMessage as initial companion message', (
+      tester,
+    ) async {
+      final service = FakeCompanionService();
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('en')],
+          home: TalkScreen(
+            passport: Passport.demo(),
+            service: service,
+            openingMessage: 'Saathi check-in. What would you like to do next?',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Saathi check-in. What would you like to do next?'),
+        findsOneWidget,
+      );
+      // Generic greeting should not be shown when openingMessage is provided
+      expect(find.textContaining('How can I help you today?'), findsNothing);
     });
   });
 }
