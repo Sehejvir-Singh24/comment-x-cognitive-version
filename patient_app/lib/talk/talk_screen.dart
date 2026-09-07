@@ -82,7 +82,15 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
       ),
     );
     if (widget.startListening) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _toggleVoice());
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        // Speak the greeting aloud so the user hears Saathi immediately.
+        final greeting =
+            'Hello ${widget.passport.name}. I am Saathi, your companion. How can I help you today?';
+        try {
+          await _speech?.speak(greeting);
+        } catch (_) {}
+        if (mounted) _toggleVoice();
+      });
     }
   }
 
@@ -173,7 +181,10 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
       return null;
     }
     final bridge = LauncherBridge();
+
+    // Parse without apps first for system commands that don't need app list.
     final basic = DeviceCommandParser.parse(commandText, const []);
+
     if (basic?.type == DeviceCommandType.home) {
       Navigator.of(context).popUntil((route) => route.isFirst);
       return 'Going home.';
@@ -184,6 +195,70 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
         return 'Opening Phone.';
       } catch (_) {
         return 'I could not open Phone.';
+      }
+    }
+    if (basic?.type == DeviceCommandType.call) {
+      final name = basic!.contactName ?? 'them';
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('Call $name?'),
+          content: Text(
+            'Do you want to call $name?',
+            style: const TextStyle(fontSize: 18),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Call'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed == true) {
+        try {
+          await bridge.openDialer();
+          return 'Opening Phone to call $name.';
+        } catch (_) {
+          return 'I could not open Phone.';
+        }
+      }
+      return 'Okay, I will not call $name.';
+    }
+    if (basic?.type == DeviceCommandType.settings) {
+      try {
+        await bridge.openSettings();
+        return 'Opening Settings.';
+      } catch (_) {
+        return 'I could not open Settings.';
+      }
+    }
+    if (basic?.type == DeviceCommandType.maps) {
+      try {
+        await bridge.openMaps();
+        return 'Opening Maps.';
+      } catch (_) {
+        return 'I could not open Maps.';
+      }
+    }
+    if (basic?.type == DeviceCommandType.calendar) {
+      try {
+        await bridge.openCalendar();
+        return 'Opening Calendar.';
+      } catch (_) {
+        return 'I could not open Calendar.';
+      }
+    }
+    if (basic?.type == DeviceCommandType.contacts) {
+      try {
+        await bridge.openContacts();
+        return 'Opening Contacts.';
+      } catch (_) {
+        return 'I could not open Contacts.';
       }
     }
 
@@ -558,32 +633,8 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
               ),
             ),
 
-            // Loading indicator
-            if (_loading)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 8,
-                  horizontal: 20,
-                ),
-                child: Row(
-                  children: [
-                    const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2.5),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      s?.saathiThinking ?? 'Saathi is thinking…',
-                      style: const TextStyle(
-                        fontStyle: FontStyle.italic,
-                        fontSize: 16,
-                        color: Color(0xFF185A49),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            // Thinking animation while waiting for Gemini
+            if (_loading) const _ThinkingBubble(),
 
             // Quick suggestion chips (Elderly touch friendly)
             Container(
@@ -763,6 +814,85 @@ class _QuickChip extends StatelessWidget {
       side: const BorderSide(color: Color(0xFFB5D3C7)),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       onPressed: onTap,
+    );
+  }
+}
+
+/// Animated "Saathi is thinking" bubble with three pulsing dots.
+/// Shown in the chat list while waiting for a Gemini reply.
+class _ThinkingBubble extends StatefulWidget {
+  const _ThinkingBubble();
+
+  @override
+  State<_ThinkingBubble> createState() => _ThinkingBubbleState();
+}
+
+class _ThinkingBubbleState extends State<_ThinkingBubble>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14, left: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+            bottomRight: Radius.circular(20),
+            bottomLeft: Radius.circular(4),
+          ),
+          border: Border.all(color: const Color(0xFFE2DFD2)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x10000000),
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(3, (i) {
+            return AnimatedBuilder(
+              animation: _controller,
+              builder: (_, _a) {
+                // Stagger each dot by 0.2 of the cycle
+                final phase = (_controller.value - i * 0.2).clamp(0.0, 1.0);
+                final opacity = (1 - (2 * phase - 1).abs()).clamp(0.2, 1.0);
+                return Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: Color.fromRGBO(24, 90, 73, opacity),
+                    shape: BoxShape.circle,
+                  ),
+                );
+              },
+            );
+          }),
+        ),
+      ),
     );
   }
 }

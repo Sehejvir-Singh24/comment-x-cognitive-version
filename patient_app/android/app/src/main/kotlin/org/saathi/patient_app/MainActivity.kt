@@ -109,6 +109,41 @@ class MainActivity : FlutterActivity() {
                             startActivity(Intent(Intent.ACTION_DIAL))
                             result.success(null)
                         }
+                        "dialNumber" -> {
+                            val number = call.argument<String>("number").orEmpty()
+                            val uri = android.net.Uri.parse("tel:$number")
+                            startActivity(Intent(Intent.ACTION_DIAL, uri))
+                            result.success(null)
+                        }
+                        "openSettings" -> {
+                            startActivity(Intent(Settings.ACTION_SETTINGS))
+                            result.success(null)
+                        }
+                        "openMaps" -> {
+                            val uri = android.net.Uri.parse("geo:0,0")
+                            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                                setPackage("com.google.android.apps.maps")
+                            }
+                            val fallback = Intent(Intent.ACTION_VIEW, uri)
+                            try {
+                                startActivity(intent)
+                            } catch (_: android.content.ActivityNotFoundException) {
+                                startActivity(fallback)
+                            }
+                            result.success(null)
+                        }
+                        "openCalendar" -> {
+                            val intent = Intent(Intent.ACTION_MAIN).apply {
+                                addCategory(Intent.CATEGORY_APP_CALENDAR)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            startActivity(intent)
+                            result.success(null)
+                        }
+                        "openContacts" -> {
+                            startActivity(Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI))
+                            result.success(null)
+                        }
                         else -> result.notImplemented()
                     }
                 } catch (e: Exception) {

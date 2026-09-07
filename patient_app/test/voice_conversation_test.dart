@@ -90,6 +90,9 @@ void main() {
         ),
       );
       await tester.pump();
+      // The greeting is spoken first; complete it so the listen loop starts.
+      voice.spoken.complete();
+      await tester.pump();
       expect(voice.starts, 1);
       voice.heard.complete('I enjoy gardening');
       await tester.pump();

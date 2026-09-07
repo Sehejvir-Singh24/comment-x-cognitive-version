@@ -329,6 +329,64 @@ class _LauncherHomeState extends State<LauncherHome>
                   ),
                 ),
                 const SizedBox(height: 20),
+                // ── SOS emergency button ─────────────────────────────────
+                const SizedBox(height: 4),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFB71C1C),
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(72),
+                    textStyle: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  onPressed: () async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Call for help?'),
+                        content: const Text(
+                          'This will open the phone dialler. Call someone who can help you.',
+                          style: TextStyle(fontSize: 18),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Cancel'),
+                          ),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFB71C1C),
+                              foregroundColor: Colors.white,
+                            ),
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('Call now'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirmed == true && context.mounted) {
+                      try {
+                        await bridge.openDialer();
+                      } catch (_) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Could not open Phone.'),
+                            ),
+                          );
+                        }
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.emergency_outlined, size: 32),
+                  label: const Text('SOS — Call for help'),
+                ),
+                const SizedBox(height: 20),
                 FilledButton.icon(
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(108),
@@ -340,7 +398,7 @@ class _LauncherHomeState extends State<LauncherHome>
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Say “Open WhatsApp”, “Open Phone”, or ask Saathi a question.',
+                  'Say "Open WhatsApp", "Open Maps", or ask Saathi a question.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 17, color: Colors.grey[800]),
                 ),
@@ -383,23 +441,92 @@ class _LauncherHomeState extends State<LauncherHome>
                   style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  onPressed: passport == null
-                      ? null
-                      : () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => PassportScreen(
-                              store: passportStore,
-                              onChanged: (value) {
-                                if (mounted) setState(() => passport = value);
-                              },
-                            ),
+                // ── 2×3 grid of feature tiles ────────────────────────────
+                GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 1.15,
+                  children: [
+                    _HomeTile(
+                      icon: Icons.book_outlined,
+                      label: s.passport,
+                      color: const Color(0xFF185A49),
+                      enabled: passport != null,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => PassportScreen(
+                            store: passportStore,
+                            onChanged: (value) {
+                              if (mounted) setState(() => passport = value);
+                            },
                           ),
                         ),
-                  icon: const Icon(Icons.book_outlined, size: 32),
-                  label: Text(s.passport),
+                      ),
+                    ),
+                    _HomeTile(
+                      icon: Icons.play_circle_outline,
+                      label: s.watch,
+                      color: const Color(0xFF1A6B5A),
+                      enabled: passport != null,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => WatchScreen(recordStore: recordStore),
+                        ),
+                      ),
+                    ),
+                    _HomeTile(
+                      icon: Icons.people_outline,
+                      label: s.family,
+                      color: const Color(0xFF2E7D6B),
+                      enabled: passport != null,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => FamilyScreen(
+                            passport: passport!,
+                            passportStore: passportStore,
+                            recordStore: recordStore,
+                          ),
+                        ),
+                      ),
+                    ),
+                    _HomeTile(
+                      icon: Icons.medication_outlined,
+                      label: s.medicine,
+                      color: const Color(0xFF3D6B8C),
+                      enabled: passport != null,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => MedicineScreen(
+                            passport: passport!,
+                            recordStore: recordStore,
+                          ),
+                        ),
+                      ),
+                    ),
+                    _HomeTile(
+                      icon: Icons.today_outlined,
+                      label: s.myDay,
+                      color: const Color(0xFF5C6A3D),
+                      enabled: passport != null,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => MyDayScreen(passport: passport!),
+                        ),
+                      ),
+                    ),
+                    _HomeTile(
+                      icon: Icons.call_outlined,
+                      label: s.phone,
+                      color: const Color(0xFF6B3D5C),
+                      enabled: true,
+                      onTap: () => perform(bridge.openDialer),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 if (passport == null)
                   TextButton(
                     onPressed: () async {
@@ -418,107 +545,25 @@ class _LauncherHomeState extends State<LauncherHome>
                       'Open Memory Passport to check saved data',
                     ),
                   ),
-                // Watch — Video Recall (this increment)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: ElevatedButton.icon(
-                    onPressed: passport == null
-                        ? null
-                        : () => Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) =>
-                                  WatchScreen(recordStore: recordStore),
+                // ── Caregiver dashboard link + set-home ──────────────────
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(64),
+                  ),
+                  onPressed: passport == null
+                      ? null
+                      : () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => CaregiverDashboardScreen(
+                              passport: passport!,
+                              recordStore: recordStore,
                             ),
                           ),
-                    icon: const Icon(Icons.play_circle_outline, size: 32),
-                    label: Text(s.watch),
-                  ),
+                        ),
+                  icon: const Icon(Icons.insights_outlined, size: 28),
+                  label: const Text('Caregiver dashboard'),
                 ),
-                // Family — Family Recognition (this increment)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: ElevatedButton.icon(
-                    onPressed: passport == null
-                        ? null
-                        : () => Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => FamilyScreen(
-                                passport: passport!,
-                                passportStore: passportStore,
-                                recordStore: recordStore,
-                              ),
-                            ),
-                          ),
-                    icon: const Icon(Icons.people_outline, size: 32),
-                    label: Text(s.family),
-                  ),
-                ),
-                // Photos — placeholder
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: ElevatedButton.icon(
-                    onPressed: () => upcoming(s.photos),
-                    icon: const Icon(Icons.photo_outlined, size: 32),
-                    label: Text(s.photos),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: ElevatedButton.icon(
-                    onPressed: passport == null
-                        ? null
-                        : () => Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => MedicineScreen(
-                                passport: passport!,
-                                recordStore: recordStore,
-                              ),
-                            ),
-                          ),
-                    icon: const Icon(Icons.medication_outlined, size: 32),
-                    label: Text(s.medicine),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: ElevatedButton.icon(
-                    onPressed: passport == null
-                        ? null
-                        : () => Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => MyDayScreen(passport: passport!),
-                            ),
-                          ),
-                    icon: const Icon(Icons.today_outlined, size: 32),
-                    label: Text(s.myDay),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(64),
-                    ),
-                    onPressed: passport == null
-                        ? null
-                        : () => Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => CaregiverDashboardScreen(
-                                passport: passport!,
-                                recordStore: recordStore,
-                              ),
-                            ),
-                          ),
-                    icon: const Icon(Icons.insights_outlined, size: 28),
-                    label: const Text('Caregiver dashboard'),
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: busy ? null : () => perform(bridge.openDialer),
-                  icon: const Icon(Icons.call_outlined),
-                  label: Text(s.phone),
-                ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 Text(defaultHome ? s.homeEnabled : s.homeNotEnabled),
                 const SizedBox(height: 8),
                 OutlinedButton(
@@ -530,6 +575,56 @@ class _LauncherHomeState extends State<LauncherHome>
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A large square tile used in the home screen feature grid.
+/// Elderly-friendly: big icon, bold label, coloured background.
+class _HomeTile extends StatelessWidget {
+  const _HomeTile({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: enabled ? color : color.withAlpha(100),
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: enabled ? onTap : null,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 42, color: Colors.white),
+              const SizedBox(height: 10),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  height: 1.2,
+                ),
+              ),
+            ],
           ),
         ),
       ),

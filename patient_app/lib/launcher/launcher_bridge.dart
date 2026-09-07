@@ -27,4 +27,10 @@ class LauncherBridge {
   Future<void> openApp(String packageName) =>
       channel.invokeMethod<void>('openApp', {'packageName': packageName});
   Future<void> openDialer() => channel.invokeMethod<void>('openDialer');
+  Future<void> dialNumber(String number) =>
+      channel.invokeMethod<void>('dialNumber', {'number': number});
+  Future<void> openSettings() => channel.invokeMethod<void>('openSettings');
+  Future<void> openMaps() => channel.invokeMethod<void>('openMaps');
+  Future<void> openCalendar() => channel.invokeMethod<void>('openCalendar');
+  Future<void> openContacts() => channel.invokeMethod<void>('openContacts');
 }

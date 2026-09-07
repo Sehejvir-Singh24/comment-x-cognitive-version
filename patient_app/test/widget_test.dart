@@ -71,8 +71,13 @@ void main() {
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
     await tester.pumpWidget(const CompanionApp());
     await tester.pumpAndSettle();
+    // The grid contains a NeverScrollable inner Scrollable; target the outer one.
+    final outer = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(find.text('Speak to Saathi'), 200,
+        scrollable: outer);
     expect(find.text('Speak to Saathi'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('Choose home screen'), 400);
+    await tester.scrollUntilVisible(find.text('Choose home screen'), 400,
+        scrollable: outer);
     await tester.tap(find.text('Choose home screen'));
     await tester.pumpAndSettle();
     expect(calls, contains('requestHome'));
@@ -82,10 +87,27 @@ void main() {
   testWidgets('App list opens an installed app through the bridge', (
     tester,
   ) async {
+    // Use a phone-sized viewport so all home screen buttons fit without
+    // clipping at the bottom edge.
+    tester.view.physicalSize = const Size(1080, 1920);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(const CompanionApp());
     await tester.pumpAndSettle();
+    // Scroll the outer home list until 'Choose an app' is hit-testable.
+    final outer = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(
+      find.text('Choose an app'),
+      200,
+      maxScrolls: 30,
+      scrollable: outer,
+    );
+    await tester.ensureVisible(find.text('Choose an app'));
     await tester.tap(find.text('Choose an app'));
     await tester.pumpAndSettle();
+    // App list is now visible via MaterialPageRoute.
+    expect(find.text('Clock'), findsOneWidget);
     await tester.tap(find.text('Clock'));
     await tester.pumpAndSettle();
     expect(calls, contains('openApp'));
