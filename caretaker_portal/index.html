@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Saathi — Caretaker Portal</title>
+  <meta name="description" content="Saathi Caretaker Portal — Monitor your patient's cognitive progress, daily routines, medicine adherence, and behavioural trends in one place." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ═══════════════════════════════ SIDEBAR ═══════════════════════════════ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <circle cx="14" cy="14" r="14" fill="rgba(255,255,255,0.15)"/>
+            <path d="M9 14c0-2.76 2.24-5 5-5s5 2.24 5 5-2.24 5-5 5" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="14" cy="14" r="2" fill="white"/>
+            <path d="M14 7v2M14 19v2M7 14h2M19 14h2" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <span class="brand-name">Saathi</span>
+          <span class="brand-sub">Caretaker Portal</span>
+        </div>
+      </div>
+      <button class="sidebar-close" id="sidebarClose" aria-label="Close menu">&#10005;</button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item active" data-page="overview" id="nav-overview">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Overview
+      </a>
+      <a href="#" class="nav-item" data-page="cognitive" id="nav-cognitive">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+        Cognitive Records
+      </a>
+      <a href="#" class="nav-item" data-page="medicine" id="nav-medicine">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 9l-7 3-7-3m14 0l-7 3m0 0v9m7-12v9m-14-9v9"/></svg>
+        Medicine & Routines
+      </a>
+      <a href="#" class="nav-item" data-page="passport" id="nav-passport">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+        Memory Passport
+      </a>
+      <a href="#" class="nav-item" data-page="alerts" id="nav-alerts">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+        Alerts
+        <span class="nav-badge">2</span>
+      </a>
+
+      <div class="nav-section-label">Tools</div>
+
+      <a href="#" class="nav-item" data-page="notes" id="nav-notes">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+        Daily Notes
+      </a>
+      <a href="#" class="nav-item" data-page="report" id="nav-report">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Weekly Report
+      </a>
+      <a href="#" class="nav-item" data-page="settings" id="nav-settings">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+        Settings
+      </a>
+    </nav>
+
+    <div class="sidebar-patient">
+      <div class="patient-avatar">B</div>
+      <div class="patient-info">
+        <span class="patient-name">Mr. Bora</span>
+        <span class="patient-age">72 · Assam</span>
+      </div>
+      <div class="patient-status online"></div>
+    </div>
+  </aside>
+
+  <!-- ═══════════════════════════════ MAIN ═══════════════════════════════════ -->
+  <main class="main" id="main">
+
+    <!-- TOP BAR -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="menu-btn" id="menuBtn" aria-label="Open menu">
+          <span></span><span></span><span></span>
+        </button>
+        <div id="pageTitle" class="page-title">Overview</div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn-primary ai-checkup-btn" id="triggerAiCheckupTopBtn" onclick="openAiCheckupModal()" title="Send instant AI checkup to patient app">
+          <span>🤖 Trigger AI Checkup</span>
+        </button>
+        <button class="btn-ghost sync-btn" id="syncDataBtn" title="Sync or Import App Data">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          <span>Sync / Import Data</span>
+        </button>
+        <div class="topbar-date" id="liveDate"></div>
+        <div class="caretaker-chip">
+          <div class="caretaker-avatar">R</div>
+          <span>Rahul (Son)</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ══════════ PAGE: OVERVIEW ══════════ -->
+    <section class="page active" id="page-overview">
+
+      <!-- Hero banner -->
+      <div class="hero-banner">
+        <div class="hero-text">
+          <p class="hero-greeting" id="heroGreeting">Good morning</p>
+          <h1 class="hero-headline">Mr. Bora is having a calm day today.</h1>
+          <p class="hero-sub">Last activity recorded <strong>2 hours ago</strong> · App active on device</p>
+        </div>
+        <div class="hero-csi">
+          <div class="csi-ring" id="csiRing">
+            <svg viewBox="0 0 120 120" class="csi-svg">
+              <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="10"/>
+              <circle cx="60" cy="60" r="50" fill="none" stroke="white" stroke-width="10"
+                stroke-dasharray="314" stroke-dashoffset="75" stroke-linecap="round"
+                transform="rotate(-90 60 60)" class="csi-progress"/>
+            </svg>
+            <div class="csi-label">
+              <span class="csi-value">76</span>
+              <span class="csi-text">Observe</span>
+            </div>
+          </div>
+          <p class="csi-caption">Cognitive Stability Indicator</p>
+        </div>
+      </div>
+
+      <!-- Stat cards -->
+      <div class="stats-grid">
+        <div class="stat-card" data-animate>
+          <div class="stat-icon teal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <div class="stat-body">
+            <span class="stat-label">Recall Accuracy</span>
+            <span class="stat-value">74%</span>
+            <span class="stat-delta up">↑ 3% this week</span>
+          </div>
+        </div>
+        <div class="stat-card" data-animate>
+          <div class="stat-icon amber">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <div class="stat-body">
+            <span class="stat-label">Hint Dependency</span>
+            <span class="stat-value">1.3</span>
+            <span class="stat-delta neutral">→ Stable</span>
+          </div>
+        </div>
+        <div class="stat-card" data-animate>
+          <div class="stat-icon blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          </div>
+          <div class="stat-body">
+            <span class="stat-label">Avg Response Time</span>
+            <span class="stat-value">6.2s</span>
+            <span class="stat-delta down">↓ 0.8s improved</span>
+          </div>
+        </div>
+        <div class="stat-card" data-animate>
+          <div class="stat-icon green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+          </div>
+          <div class="stat-body">
+            <span class="stat-label">Medicine Adherence</span>
+            <span class="stat-value">94%</span>
+            <span class="stat-delta up">↑ All today done</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Two column layout -->
+      <div class="two-col">
+
+        <!-- Weekly trend chart -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Cognitive Stability — 4 Weeks</h2>
+            <span class="card-tag">Behavioural Trend</span>
+          </div>
+          <div class="chart-container">
+            <div class="chart-bars" id="stabilityChart">
+              <!-- Rendered by JS -->
+            </div>
+            <div class="chart-labels">
+              <span>Wk 1</span><span>Wk 2</span><span>Wk 3</span><span>Wk 4</span>
+            </div>
+          </div>
+          <p class="chart-note">⚠️ Behavioural change detected between week 3 and 4. Consider a check-in.</p>
+        </div>
+
+        <!-- Today's plan -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Today's Plan</h2>
+            <span class="card-tag" id="todayDate"></span>
+          </div>
+          <ul class="today-list" id="todayList">
+            <!-- Rendered by JS -->
+          </ul>
+        </div>
+      </div>
+
+      <!-- Recent activity -->
+      <div class="card full-width">
+        <div class="card-header">
+          <h2 class="card-title">Recent Cognitive Activity</h2>
+          <button class="btn-ghost" onclick="showPage('cognitive')">View all →</button>
+        </div>
+        <div class="activity-list" id="recentActivity">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ══════════ PAGE: COGNITIVE RECORDS ══════════ -->
+    <section class="page" id="page-cognitive">
+      <div class="page-hero-small">
+        <h2>Cognitive Records</h2>
+        <p>All exercises from Family Recognition, Video Recall, and Brain Gym sessions.</p>
+      </div>
+
+      <div class="filter-row">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="family">Family Recognition</button>
+        <button class="filter-btn" data-filter="video">Video Recall</button>
+        <button class="filter-btn" data-filter="medicine">Medicine Recall</button>
+      </div>
+
+      <div class="records-table-wrap">
+        <table class="records-table" id="recordsTable">
+          <thead>
+            <tr>
+              <th>Activity</th>
+              <th>Result</th>
+              <th>Hints Used</th>
+              <th>Response Time</th>
+              <th>When</th>
+              <th>Difficulty</th>
+            </tr>
+          </thead>
+          <tbody id="recordsBody">
+            <!-- Rendered by JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="cognitive-summary-grid">
+        <div class="card">
+          <div class="card-header"><h2 class="card-title">Accuracy Breakdown</h2></div>
+          <div class="donut-wrap">
+            <svg viewBox="0 0 120 120" class="donut-svg">
+              <circle cx="60" cy="60" r="44" fill="none" stroke="#e8f0ec" stroke-width="18"/>
+              <circle cx="60" cy="60" r="44" fill="none" stroke="#185A49" stroke-width="18"
+                stroke-dasharray="276" stroke-dashoffset="72" stroke-linecap="round"
+                transform="rotate(-90 60 60)"/>
+            </svg>
+            <div class="donut-center">
+              <span class="donut-pct">74%</span>
+              <span class="donut-lbl">Correct</span>
+            </div>
+          </div>
+          <div class="donut-legend">
+            <span class="legend-dot correct"></span> Correct (74%)
+            <span class="legend-dot incorrect"></span> Needed support (26%)
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h2 class="card-title">Hint Usage Trend</h2></div>
+          <div class="sparkline-wrap" id="hintSparkline">
+            <!-- Rendered by JS -->
+          </div>
+          <p class="chart-note" style="margin-top:8px">Lower hint usage → better recall independence</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════ PAGE: MEDICINE & ROUTINES ══════════ -->
+    <section class="page" id="page-medicine">
+      <div class="page-hero-small">
+        <h2>Medicine &amp; Daily Routines</h2>
+        <p>Track Mr. Bora's medication confirmations and daily schedule completion.</p>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Today's Medicines</h2>
+            <span class="card-tag green-tag">2 of 2 Done</span>
+          </div>
+          <ul class="medicine-list">
+            <li class="med-item done">
+              <div class="med-icon">💊</div>
+              <div class="med-body">
+                <span class="med-name">Morning Medicine</span>
+                <span class="med-time">09:00 AM</span>
+              </div>
+              <div class="med-status done-badge">✓ Confirmed</div>
+            </li>
+            <li class="med-item done">
+              <div class="med-icon">💊</div>
+              <div class="med-body">
+                <span class="med-name">Evening Medicine</span>
+                <span class="med-time">08:00 PM</span>
+              </div>
+              <div class="med-status done-badge">✓ Confirmed</div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Daily Routine</h2>
+            <span class="card-tag">3 of 4 Done</span>
+          </div>
+          <ul class="routine-list" id="routineList">
+            <!-- Rendered by JS -->
+          </ul>
+        </div>
+      </div>
+
+      <div class="card full-width">
+        <div class="card-header">
+          <h2 class="card-title">7-Day Medicine Adherence</h2>
+        </div>
+        <div class="adherence-grid" id="adherenceGrid">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════ PAGE: MEMORY PASSPORT ══════════ -->
+    <section class="page" id="page-passport">
+      <div class="page-hero-small">
+        <h2>Memory Passport</h2>
+        <p>Patient profile created by the caretaker; used by Saathi to personalise all exercises.</p>
+      </div>
+
+      <div class="passport-grid">
+        <div class="card passport-card profile-card">
+          <div class="profile-top">
+            <div class="profile-avatar">B</div>
+            <div>
+              <h3 class="profile-name">Mr. Bora</h3>
+              <p class="profile-meta">Age 72 · Assam, North-East India</p>
+              <span class="profile-demo-tag">Demo Profile</span>
+            </div>
+          </div>
+          <div class="profile-fav">
+            <span class="fav-label">Favourite Activity</span>
+            <span class="fav-value">🌱 Gardening</span>
+          </div>
+        </div>
+
+        <div class="card passport-card">
+          <div class="card-header"><h2 class="card-title">Family Members</h2></div>
+          <ul class="passport-list">
+            <li class="passport-item">
+              <div class="passport-avatar teal">R</div>
+              <div>
+                <span class="p-name">Rahul</span>
+                <span class="p-rel">Son · Visits Sunday · Cricket</span>
+              </div>
+            </li>
+            <li class="passport-item">
+              <div class="passport-avatar amber">A</div>
+              <div>
+                <span class="p-name">Ananya</span>
+                <span class="p-rel">Daughter</span>
+              </div>
+            </li>
+            <li class="passport-item">
+              <div class="passport-avatar rose">M</div>
+              <div>
+                <span class="p-name">Meera</span>
+                <span class="p-rel">Wife</span>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="card passport-card">
+          <div class="card-header"><h2 class="card-title">Daily Routine</h2></div>
+          <ul class="passport-list timeline">
+            <li class="passport-item timeline-item">
+              <span class="timeline-time">08:00</span>
+              <div class="timeline-dot"></div>
+              <span class="timeline-label">Breakfast</span>
+            </li>
+            <li class="passport-item timeline-item">
+              <span class="timeline-time">09:00</span>
+              <div class="timeline-dot medicine"></div>
+              <span class="timeline-label">💊 Medicine</span>
+            </li>
+            <li class="passport-item timeline-item">
+              <span class="timeline-time">17:00</span>
+              <div class="timeline-dot"></div>
+              <span class="timeline-label">Evening Walk</span>
+            </li>
+            <li class="passport-item timeline-item">
+              <span class="timeline-time">20:00</span>
+              <div class="timeline-dot medicine"></div>
+              <span class="timeline-label">💊 Medicine</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="card passport-card">
+          <div class="card-header"><h2 class="card-title">Important Places</h2></div>
+          <ul class="passport-list">
+            <li class="passport-item">
+              <div class="place-icon">🏠</div>
+              <div><span class="p-name">Home — Guwahati</span></div>
+            </li>
+            <li class="passport-item">
+              <div class="place-icon">🌳</div>
+              <div><span class="p-name">Neighbourhood Garden</span></div>
+            </li>
+            <li class="passport-item">
+              <div class="place-icon">🕌</div>
+              <div><span class="p-name">Local Temple</span></div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════ PAGE: ALERTS ══════════ -->
+    <section class="page" id="page-alerts">
+      <div class="page-hero-small">
+        <h2>Alerts &amp; Observations</h2>
+        <p>Saathi noticed the following trends. These are behavioural observations — not medical diagnoses.</p>
+      </div>
+
+      <div class="alerts-list">
+        <div class="alert-card warning">
+          <div class="alert-icon">⚠️</div>
+          <div class="alert-body">
+            <h3 class="alert-title">Cognitive Stability Declined</h3>
+            <p class="alert-desc">CSI dropped from 84 → 72 over the last 2 weeks. Hint dependency increased slightly. Consider reviewing with a healthcare professional.</p>
+            <span class="alert-time">Detected 2 days ago</span>
+          </div>
+          <button class="alert-dismiss">Dismiss</button>
+        </div>
+
+        <div class="alert-card info">
+          <div class="alert-icon">💬</div>
+          <div class="alert-body">
+            <h3 class="alert-title">Delayed Recall Improving</h3>
+            <p class="alert-desc">Mr. Bora completed 3 Video Recall delayed exercises this week with no hints. This is a positive trend.</p>
+            <span class="alert-time">Observed this week</span>
+          </div>
+          <button class="alert-dismiss">Dismiss</button>
+        </div>
+
+        <div class="alert-card success">
+          <div class="alert-icon">✅</div>
+          <div class="alert-body">
+            <h3 class="alert-title">Full Medicine Adherence This Week</h3>
+            <p class="alert-desc">All morning and evening medicines were confirmed across all 7 days this week. Excellent routine consistency.</p>
+            <span class="alert-time">This week</span>
+          </div>
+          <button class="alert-dismiss">Dismiss</button>
+        </div>
+
+        <div class="alert-card warning">
+          <div class="alert-icon">🕐</div>
+          <div class="alert-body">
+            <h3 class="alert-title">Response Time Slowing — Family Recognition</h3>
+            <p class="alert-desc">Average response time in Family Recognition sessions has increased from 5.1s → 7.4s. No cause for alarm; worth monitoring.</p>
+            <span class="alert-time">Trend over 10 days</span>
+          </div>
+          <button class="alert-dismiss">Dismiss</button>
+        </div>
+      </div>
+
+      <div class="disclaimer-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        <p>Saathi tracks behavioural patterns only. It is <strong>not a medical device</strong> and cannot diagnose dementia or determine if dementia is worsening. Always consult a qualified healthcare professional for medical decisions.</p>
+      </div>
+    </section>
+
+    <!-- ══════════ PAGE: DAILY NOTES ══════════ -->
+    <section class="page" id="page-notes">
+      <div class="page-hero-small">
+        <h2>Daily Notes &amp; Journal</h2>
+        <p>Log observations, mood changes, and notable moments that Saathi can't capture automatically.</p>
+      </div>
+
+      <!-- Add note form -->
+      <div class="card note-form-card">
+        <div class="card-header">
+          <h2 class="card-title">Add Today's Note</h2>
+          <span class="card-tag" id="noteFormDate"></span>
+        </div>
+        <div class="note-form">
+          <div class="mood-row">
+            <span class="mood-label">Mood observed:</span>
+            <div class="mood-options" id="moodOptions">
+              <button class="mood-btn" data-mood="calm" title="Calm">😌 Calm</button>
+              <button class="mood-btn" data-mood="happy" title="Happy">😊 Happy</button>
+              <button class="mood-btn" data-mood="anxious" title="Anxious">😰 Anxious</button>
+              <button class="mood-btn" data-mood="confused" title="Confused">😕 Confused</button>
+              <button class="mood-btn" data-mood="tired" title="Tired">😴 Tired</button>
+              <button class="mood-btn" data-mood="agitated" title="Agitated">😤 Agitated</button>
+            </div>
+          </div>
+          <textarea id="noteInput" class="note-textarea" placeholder="Write your observation here… e.g. 'Mr. Bora recognised Rahul's photo quickly today. Seemed very cheerful during morning walk. Ate full breakfast.'" rows="4"></textarea>
+          <div class="note-form-footer">
+            <div class="note-tags">
+              <span class="tag-label">Tag:</span>
+              <button class="tag-btn active" data-tag="general">General</button>
+              <button class="tag-btn" data-tag="behaviour">Behaviour</button>
+              <button class="tag-btn" data-tag="health">Health</button>
+              <button class="tag-btn" data-tag="social">Social</button>
+              <button class="tag-btn" data-tag="incident">Incident</button>
+            </div>
+            <button class="btn-primary" id="addNoteBtn">Save Note</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notes feed -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Previous Notes</h2>
+          <div class="notes-filter-row">
+            <select class="notes-select" id="notesFilter">
+              <option value="all">All notes</option>
+              <option value="behaviour">Behaviour</option>
+              <option value="health">Health</option>
+              <option value="social">Social</option>
+              <option value="incident">Incident</option>
+            </select>
+          </div>
+        </div>
+        <div class="notes-feed" id="notesFeed">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════ PAGE: WEEKLY REPORT ══════════ -->
+    <section class="page" id="page-report">
+      <div class="report-topbar">
+        <div class="page-hero-small" style="flex:1">
+          <h2>Weekly Report</h2>
+          <p>Summary for the week of <span id="reportWeekRange"></span> · Share with your healthcare professional.</p>
+        </div>
+        <button class="btn-primary print-btn" onclick="window.print()">🖨️ Print / Save PDF</button>
+      </div>
+
+      <div id="reportContent" class="report-content">
+
+        <!-- Header -->
+        <div class="report-header-card">
+          <div class="report-patient">
+            <div class="profile-avatar" style="width:56px;height:56px;font-size:24px">B</div>
+            <div>
+              <h3 style="font-size:20px;font-weight:700">Mr. Bora</h3>
+              <p style="color:var(--text-muted);font-size:13px">Age 72 · Assam · Saathi Cognitive Companion</p>
+            </div>
+          </div>
+          <div class="report-meta">
+            <span>Prepared by: <strong>Rahul (Son)</strong></span>
+            <span id="reportDate"></span>
+          </div>
+        </div>
+
+        <!-- KPI row -->
+        <div class="report-kpi-row">
+          <div class="report-kpi">
+            <span class="report-kpi-icon">🧠</span>
+            <span class="report-kpi-val">74%</span>
+            <span class="report-kpi-lbl">Recall Accuracy</span>
+          </div>
+          <div class="report-kpi">
+            <span class="report-kpi-icon">💡</span>
+            <span class="report-kpi-val">1.3</span>
+            <span class="report-kpi-lbl">Avg Hints/Session</span>
+          </div>
+          <div class="report-kpi">
+            <span class="report-kpi-icon">⏱️</span>
+            <span class="report-kpi-val">6.2s</span>
+            <span class="report-kpi-lbl">Avg Response Time</span>
+          </div>
+          <div class="report-kpi">
+            <span class="report-kpi-icon">💊</span>
+            <span class="report-kpi-val">94%</span>
+            <span class="report-kpi-lbl">Medicine Adherence</span>
+          </div>
+          <div class="report-kpi">
+            <span class="report-kpi-icon">📋</span>
+            <span class="report-kpi-val">8</span>
+            <span class="report-kpi-lbl">Total Sessions</span>
+          </div>
+          <div class="report-kpi">
+            <span class="report-kpi-icon">🔵</span>
+            <span class="report-kpi-val">76</span>
+            <span class="report-kpi-lbl">CSI Score</span>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <!-- Cognitive summary -->
+          <div class="card">
+            <div class="card-header"><h2 class="card-title">Cognitive Activity</h2></div>
+            <table class="report-table">
+              <tr><th>Exercise Type</th><th>Sessions</th><th>Accuracy</th></tr>
+              <tr><td>👨‍👩‍👧 Family Recognition</td><td>3</td><td>67%</td></tr>
+              <tr><td>🎬 Video Recall</td><td>3</td><td>100%</td></tr>
+              <tr><td>💊 Medicine Recall</td><td>2</td><td>50%</td></tr>
+              <tr class="total-row"><td><strong>Total</strong></td><td><strong>8</strong></td><td><strong>74%</strong></td></tr>
+            </table>
+          </div>
+
+          <!-- Medicine summary -->
+          <div class="card">
+            <div class="card-header"><h2 class="card-title">Medicine &amp; Routine</h2></div>
+            <table class="report-table">
+              <tr><th>Metric</th><th>This Week</th><th>Status</th></tr>
+              <tr><td>Morning medicine</td><td>7/7 days</td><td><span class="result-pill correct">Full</span></td></tr>
+              <tr><td>Evening medicine</td><td>7/7 days</td><td><span class="result-pill correct">Full</span></td></tr>
+              <tr><td>Morning walk</td><td>5/7 days</td><td><span class="result-pill correct">Good</span></td></tr>
+              <tr><td>Breakfast routine</td><td>7/7 days</td><td><span class="result-pill correct">Full</span></td></tr>
+            </table>
+          </div>
+        </div>
+
+        <!-- CSI trend -->
+        <div class="card">
+          <div class="card-header"><h2 class="card-title">Cognitive Stability Trend</h2><span class="card-tag">4-Week View</span></div>
+          <div class="report-csi-bars">
+            <div class="report-csi-bar"><div class="rcsi-fill" style="height:86%"></div><span class="rcsi-val">86</span><span class="rcsi-label">Wk 1</span></div>
+            <div class="report-csi-bar"><div class="rcsi-fill" style="height:84%"></div><span class="rcsi-val">84</span><span class="rcsi-label">Wk 2</span></div>
+            <div class="report-csi-bar"><div class="rcsi-fill" style="height:79%"></div><span class="rcsi-val">79</span><span class="rcsi-label">Wk 3</span></div>
+            <div class="report-csi-bar declining"><div class="rcsi-fill declining" style="height:72%"></div><span class="rcsi-val">72</span><span class="rcsi-label">Wk 4</span></div>
+          </div>
+          <p class="chart-note">CSI declined by 14 points over 4 weeks. Recommend discussing with a neurologist at next scheduled visit.</p>
+        </div>
+
+        <!-- Caretaker observations -->
+        <div class="card">
+          <div class="card-header"><h2 class="card-title">Caretaker Observations This Week</h2></div>
+          <div class="report-notes" id="reportNotes">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <div class="disclaimer-box" style="margin-top:0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+          <p>This report is generated by Saathi, a behavioural support tool. It is <strong>not a medical document</strong> and should not be used for diagnosis. All data is stored locally on the device.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════ PAGE: SETTINGS ══════════ -->
+    <section class="page" id="page-settings">
+      <div class="page-hero-small">
+        <h2>Settings</h2>
+        <p>Manage patient details, caretaker profiles, and portal preferences.</p>
+      </div>
+
+      <div class="settings-grid">
+
+        <!-- Patient details -->
+        <div class="card settings-section">
+          <div class="card-header">
+            <h2 class="card-title">Patient Details</h2>
+            <span class="settings-save-badge" id="patientSaveBadge"></span>
+          </div>
+          <div class="settings-form">
+            <div class="form-row">
+              <label class="form-label">Full Name</label>
+              <input class="form-input" type="text" value="Mr. Bora" id="settingName" />
+            </div>
+            <div class="form-row two-input">
+              <div>
+                <label class="form-label">Age</label>
+                <input class="form-input" type="number" value="72" id="settingAge" min="40" max="120" />
+              </div>
+              <div>
+                <label class="form-label">Region</label>
+                <input class="form-input" type="text" value="Assam" id="settingRegion" />
+              </div>
+            </div>
+            <div class="form-row">
+              <label class="form-label">Favourite Activity</label>
+              <input class="form-input" type="text" value="Gardening" id="settingActivity" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">Diagnosis note (internal only)</label>
+              <input class="form-input" type="text" value="Early-stage dementia, under neurologist supervision" id="settingDiagnosis" />
+            </div>
+            <button class="btn-primary" onclick="savePatientSettings()">Save Patient Details</button>
+          </div>
+        </div>
+
+        <!-- Caretaker profiles -->
+        <div class="card settings-section">
+          <div class="card-header">
+            <h2 class="card-title">Caretaker Profiles</h2>
+            <button class="btn-ghost" id="addCaretakerBtn">+ Add</button>
+          </div>
+          <ul class="settings-caretaker-list" id="caretakerList">
+            <li class="settings-caretaker-item primary">
+              <div class="passport-avatar teal" style="width:40px;height:40px">R</div>
+              <div style="flex:1">
+                <span class="p-name">Rahul</span>
+                <span class="p-rel">Son · Primary caretaker</span>
+              </div>
+              <span class="caretaker-role-tag primary">Primary</span>
+            </li>
+            <li class="settings-caretaker-item">
+              <div class="passport-avatar amber" style="width:40px;height:40px">A</div>
+              <div style="flex:1">
+                <span class="p-name">Ananya</span>
+                <span class="p-rel">Daughter · Secondary caretaker</span>
+              </div>
+              <span class="caretaker-role-tag">Secondary</span>
+            </li>
+            <li class="settings-caretaker-item">
+              <div class="passport-avatar rose" style="width:40px;height:40px">M</div>
+              <div style="flex:1">
+                <span class="p-name">Meera</span>
+                <span class="p-rel">Wife · Daily companion</span>
+              </div>
+              <span class="caretaker-role-tag">Companion</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Notification preferences -->
+        <div class="card settings-section">
+          <div class="card-header"><h2 class="card-title">Notification Preferences</h2></div>
+          <div class="settings-toggles">
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <span class="toggle-title">Medicine missed alert</span>
+                <span class="toggle-sub">Notify when a medicine is not confirmed within 30 min of scheduled time</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" checked id="notifMedicine" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <span class="toggle-title">CSI drop alert</span>
+                <span class="toggle-sub">Notify when Cognitive Stability drops more than 10 points in a week</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" checked id="notifCSI" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <span class="toggle-title">Weekly report reminder</span>
+                <span class="toggle-sub">Remind to generate and review report every Sunday evening</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" checked id="notifReport" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <span class="toggle-title">Positive milestones</span>
+                <span class="toggle-sub">Celebrate when Mr. Bora completes a great week — full medicine, high accuracy</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="notifMilestone" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- App info -->
+        <div class="card settings-section">
+          <div class="card-header"><h2 class="card-title">About Saathi</h2></div>
+          <div class="about-rows">
+            <div class="about-row"><span>App version</span><span class="about-val">1.0.0 (Sept 2026)</span></div>
+            <div class="about-row"><span>Data storage</span><span class="about-val">Local device only</span></div>
+            <div class="about-row"><span>Firebase sync</span><span class="about-val about-inactive">Not configured</span></div>
+            <div class="about-row"><span>Device</span><span class="about-val">RMX3868 (Android)</span></div>
+            <div class="about-row"><span>Last sync</span><span class="about-val about-inactive">Never (offline mode)</span></div>
+            <div class="about-row"><span>Test suite</span><span class="about-val">56 tests passing ✓</span></div>
+          </div>
+          <div class="disclaimer-box" style="margin-top:16px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <p>Saathi is a behavioural support tool, not a medical device. It cannot diagnose dementia or any medical condition.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── Sync Data Modal ────────────────────────────── -->
+  <div class="modal-overlay" id="syncModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>🔄 Sync / Import Patient App Data</h3>
+        <button class="modal-close" id="closeSyncModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+          Saathi is privacy-first and stores patient records locally on the device. You can import JSON session exports from the patient's companion app or download a local backup.
+        </p>
+
+        <div class="sync-actions">
+          <div class="sync-box">
+            <h4>📥 Import Patient Data</h4>
+            <p>Upload a <code>saathi_export.json</code> file generated by the Saathi mobile launcher.</p>
+            <input type="file" id="jsonFileInput" accept=".json" style="display:none">
+            <button class="btn-primary" onclick="document.getElementById('jsonFileInput').click()">Choose File</button>
+          </div>
+
+          <div class="sync-box">
+            <h4>📤 Backup Caretaker State</h4>
+            <p>Export all portal logs, daily notes, settings, and records as JSON.</p>
+            <button class="btn-ghost" id="exportDataBtn">Download JSON Backup</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── AI Checkup Simulator Modal ───────────────────── -->
+  <div class="modal-overlay" id="aiCheckupModal">
+    <div class="modal-card ai-modal-card">
+      <div class="modal-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="live-pulse"></span>
+          <h3>🤖 AI Checkup Dispatcher & Live Monitor</h3>
+        </div>
+        <button class="modal-close" id="closeAiModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="ai-status-banner" id="aiStatusBanner">
+          <span id="aiStatusText">Connecting to Mr. Bora's Saathi Companion App...</span>
+        </div>
+
+        <div class="patient-screen-preview" id="patientScreenPreview">
+          <div class="phone-frame">
+            <div class="phone-header">Saathi Launcher · Live Assessment</div>
+            <div class="phone-body">
+              <div class="saathi-avatar-circle">🤖</div>
+              <div class="patient-prompt" id="patientPromptText">
+                "Namaste Mr. Bora! Your son Rahul asked me to check in with you. Who is in this photo?"
+              </div>
+              <div class="photo-placeholder-box">
+                <span style="font-size:36px">👨‍👦</span>
+                <span>Rahul & Mr. Bora (Guwahati 2024)</span>
+              </div>
+              <div class="voice-wave">
+                <span></span><span></span><span></span><span></span><span></span>
+              </div>
+              <p class="patient-status-sub" id="patientStatusSub">Listening for voice answer...</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="ai-controls-row">
+          <button class="btn-ghost" id="simulateCorrectBtn">Simulate Correct Response (7.2s)</button>
+          <button class="btn-primary" id="simulateHintBtn">Simulate Hint Needed & Finish</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
