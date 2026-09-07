@@ -79,12 +79,34 @@ class SyncService {
     ),
   );
 
-  static Future<void> flush() async {
-    if (!await enabled()) return;
+  static Future<String?> getSyncUid() => AppDatabase.use(
+    null,
+    (db) async => await db.setting('syncUid'),
+  );
+
+  static Future<int> getPendingCount() => AppDatabase.use(
+    null,
+    (db) async {
+      final rows = await db
+          .customSelect('SELECT COUNT(*) as c FROM sync_outbox')
+          .get();
+      return rows.isEmpty ? 0 : rows.first.read<int>('c');
+    },
+  );
+
+  static Future<int> syncNow() => flush();
+
+  static Future<int> flush() async {
+    if (!await enabled()) return 0;
     await CloudSetup.ensureReady();
+    if (FirebaseAuth.instance.currentUser == null) {
+      await FirebaseAuth.instance.signInAnonymously();
+    }
     final uid = FirebaseAuth.instance.currentUser!.uid;
     final expected = await AppDatabase.use(null, (db) => db.setting('syncUid'));
-    if (expected != uid) {
+    if (expected == null) {
+      await AppDatabase.use(null, (db) => db.setSetting('syncUid', uid));
+    } else if (expected != uid) {
       throw StateError('Account changed; caregiver must enable sync again');
     }
     final rows = await AppDatabase.use(
@@ -93,8 +115,9 @@ class SyncService {
           .customSelect('SELECT * FROM sync_outbox ORDER BY seq LIMIT 50')
           .get(),
     );
+    int count = 0;
     for (final row in rows) {
-      if (!await enabled()) return;
+      if (!await enabled()) return count;
       final seq = row.read<int>('seq');
       final kind = row.read<String>('kind');
       final id = row.read<String>('entity_id');
@@ -121,6 +144,8 @@ class SyncService {
         (db) =>
             db.customStatement('DELETE FROM sync_outbox WHERE seq = ?', [seq]),
       );
+      count++;
     }
+    return count;
   }
 }

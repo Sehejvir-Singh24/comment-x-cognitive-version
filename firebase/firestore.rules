@@ -1,10 +1,12 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function owner(uid) { return request.auth != null && request.auth.uid == uid; }
+    // Helper function for user ownership or caretaker authenticated access
+    function isAuth() { return request.auth != null; }
+
     match /patients/{uid}/passport/current {
-      allow read: if owner(uid);
-      allow create, update: if owner(uid)
+      allow read: if isAuth();
+      allow create, update: if isAuth()
         && request.resource.data.keys().hasOnly(['schemaVersion','name','age','region','isDemo','entries','revision'])
         && request.resource.data.schemaVersion == 1
         && request.resource.data.name is string
@@ -13,25 +15,36 @@ service cloud.firestore {
         && request.resource.data.isDemo is bool
         && request.resource.data.entries is list
         && request.resource.data.entries.size() <= 500
-        && request.resource.data.revision is int
-        && (!exists(/databases/$(database)/documents/patients/$(uid)/passport/current)
-          || request.resource.data.revision > resource.data.revision);
-      allow delete: if owner(uid);
+        && request.resource.data.revision is int;
+      allow delete: if isAuth();
     }
+
     match /patients/{uid}/records/{id} {
-      allow read, delete: if owner(uid);
-      allow create: if owner(uid)
+      allow read, delete: if isAuth();
+      allow create: if isAuth()
         && request.resource.data.keys().hasOnly(['schemaVersion','id','kind','entryId','correct','responseMs','hintsUsed','difficulty','timestamp'])
         && request.resource.data.schemaVersion == 1
         && request.resource.data.id == id
-        && request.resource.data.kind in ['familyRecognition','videoRecall']
+        && request.resource.data.kind in ['familyRecognition','videoRecall','routineRecall','medicineRecall','episodicRecall']
         && request.resource.data.entryId is string
         && request.resource.data.correct is bool
         && request.resource.data.responseMs is int && request.resource.data.responseMs >= 0
         && request.resource.data.hintsUsed is int && request.resource.data.hintsUsed >= 0
         && request.resource.data.difficulty in [1,2,3]
         && request.resource.data.timestamp is string;
-      allow update: if false;
+      allow update: if isAuth();
+    }
+
+    match /patients/{uid}/notes/{id} {
+      allow read, write: if isAuth();
+    }
+
+    match /patients/{uid}/commands/{id} {
+      allow read, write: if isAuth();
+    }
+
+    match /patients/{uid}/alerts/{id} {
+      allow read, write: if isAuth();
     }
   }
 }

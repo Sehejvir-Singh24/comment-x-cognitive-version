@@ -5,6 +5,7 @@ import '../cognition/record_store.dart';
 import '../medicine/medicine_store.dart';
 import '../medicine/reminder_bridge.dart';
 import '../memory_passport/passport.dart';
+import '../sync/sync_service.dart';
 
 /// A local-only view for a family member or caregiver.
 ///
@@ -17,12 +18,22 @@ class CaregiverDashboardScreen extends StatefulWidget {
     this.recordStore,
     this.medicineStore,
     this.now,
+    this.isSyncEnabled,
+    this.getSyncUid,
+    this.getPendingSyncCount,
+    this.setSyncEnabled,
+    this.onSyncNow,
   });
 
   final Passport passport;
   final RecordStore? recordStore;
   final MedicineStore? medicineStore;
   final DateTime? now;
+  final Future<bool> Function()? isSyncEnabled;
+  final Future<String?> Function()? getSyncUid;
+  final Future<int> Function()? getPendingSyncCount;
+  final Future<void> Function(bool)? setSyncEnabled;
+  final Future<int> Function()? onSyncNow;
 
   @override
   State<CaregiverDashboardScreen> createState() =>
@@ -42,6 +53,8 @@ class _CaregiverDashboardScreenState extends State<CaregiverDashboardScreen> {
     _load();
   }
 
+  bool _syncing = false;
+
   Future<void> _load() async {
     setState(() {
       _error = null;
@@ -53,6 +66,18 @@ class _CaregiverDashboardScreenState extends State<CaregiverDashboardScreen> {
         _recordStore.loadAll(),
         _medicineStore.completedToday(now),
       ]);
+      bool syncEnabled = false;
+      String? syncUid;
+      int pendingCount = 0;
+      try {
+        final querySync = widget.isSyncEnabled ?? SyncService.enabled;
+        final queryUid = widget.getSyncUid ?? SyncService.getSyncUid;
+        final queryPending =
+            widget.getPendingSyncCount ?? SyncService.getPendingCount;
+        syncEnabled = await querySync();
+        syncUid = await queryUid();
+        pendingCount = await queryPending();
+      } catch (_) {}
       if (!mounted) return;
       setState(
         () => _data = _DashboardData(
@@ -60,10 +85,70 @@ class _CaregiverDashboardScreenState extends State<CaregiverDashboardScreen> {
           records: results[0] as List<CognitiveRecord>,
           completed: results[1] as Set<String>,
           now: now,
+          syncEnabled: syncEnabled,
+          syncUid: syncUid,
+          pendingSyncCount: pendingCount,
         ),
       );
     } catch (error) {
       if (mounted) setState(() => _error = error);
+    }
+  }
+
+  Future<void> _toggleSync(bool value) async {
+    try {
+      final setSync = widget.setSyncEnabled ?? SyncService.setEnabled;
+      await setSync(value);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              value
+                  ? 'Cloud sync enabled for Firebase (hiasaathi)'
+                  : 'Cloud sync disabled.',
+            ),
+          ),
+        );
+      }
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not change cloud sync: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _syncNow() async {
+    setState(() => _syncing = true);
+    try {
+      final runSync = widget.onSyncNow ?? SyncService.syncNow;
+      final count = await runSync();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF185A49),
+            content: Text(
+              count > 0
+                  ? '✓ Synced $count item(s) to Firebase Firestore!'
+                  : '✓ All items already synchronized with Firebase!',
+            ),
+          ),
+        );
+      }
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.red.shade700,
+            content: Text('Sync failed: $e'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _syncing = false);
     }
   }
 
@@ -83,7 +168,12 @@ class _CaregiverDashboardScreenState extends State<CaregiverDashboardScreen> {
         ? _ErrorState(onRetry: _load)
         : _data == null
         ? const Center(child: CircularProgressIndicator())
-        : _DashboardBody(data: _data!),
+        : _DashboardBody(
+            data: _data!,
+            syncing: _syncing,
+            onToggleSync: _toggleSync,
+            onSyncNow: _syncNow,
+          ),
   );
 }
 
@@ -93,12 +183,18 @@ class _DashboardData {
     required this.records,
     required this.completed,
     required this.now,
+    this.syncEnabled = false,
+    this.syncUid,
+    this.pendingSyncCount = 0,
   });
 
   final Passport passport;
   final List<CognitiveRecord> records;
   final Set<String> completed;
   final DateTime now;
+  final bool syncEnabled;
+  final String? syncUid;
+  final int pendingSyncCount;
 
   List<CognitiveRecord> get recentRecords {
     final cutoff = now.subtract(const Duration(days: 7));
@@ -141,8 +237,17 @@ class _DashboardData {
 }
 
 class _DashboardBody extends StatelessWidget {
-  const _DashboardBody({required this.data});
+  const _DashboardBody({
+    required this.data,
+    required this.syncing,
+    required this.onToggleSync,
+    required this.onSyncNow,
+  });
+
   final _DashboardData data;
+  final bool syncing;
+  final ValueChanged<bool> onToggleSync;
+  final VoidCallback onSyncNow;
 
   @override
   Widget build(BuildContext context) {
@@ -165,6 +270,107 @@ class _DashboardBody extends StatelessWidget {
         const SizedBox(height: 8),
         const Text(
           'This information stays on this phone. It supports care; it is not a diagnosis.',
+        ),
+        const SizedBox(height: 16),
+        _SectionTitle('Cloud sync & Caretaker portal'),
+        Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: data.syncEnabled
+                  ? const Color(0xFF185A49).withValues(alpha: 0.4)
+                  : Colors.grey.shade300,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: data.syncEnabled
+                            ? const Color(0xFF10B981)
+                            : Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        data.syncEnabled
+                            ? 'Firebase: Connected (hiasaathi)'
+                            : 'Firebase: Offline / Disabled',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    Switch(
+                      value: data.syncEnabled,
+                      onChanged: syncing ? null : onToggleSync,
+                    ),
+                  ],
+                ),
+                if (data.syncEnabled) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Sync ID: ${data.syncUid ?? "Anonymous session"}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    data.pendingSyncCount > 0
+                        ? '${data.pendingSyncCount} changes waiting to sync'
+                        : 'All records synchronized with cloud',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: data.pendingSyncCount > 0
+                          ? Colors.orange.shade800
+                          : const Color(0xFF185A49),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: syncing ? null : onSyncNow,
+                      icon: syncing
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.cloud_upload_outlined),
+                      label: Text(
+                        syncing
+                            ? 'Syncing with Firebase...'
+                            : 'Sync Now to Cloud',
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF185A49),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
         const SizedBox(height: 20),
         _SectionTitle('Today'),

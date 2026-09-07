@@ -1367,4 +1367,69 @@ body {
 }
 .ai-controls-row button { flex: 1; min-width: 140px; font-size: 13px; }
 
+/* ── Firebase Live Sync Styles ─────────────────────── */
+.firebase-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #065F46;
+  transition: all 0.3s ease;
+}
+
+.firebase-badge.offline {
+  background: rgba(156, 163, 175, 0.15);
+  border-color: rgba(156, 163, 175, 0.35);
+  color: #4B5563;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10B981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: pulseGreen 1.8s infinite cubic-bezier(0.66, 0, 0, 1);
+}
+
+.firebase-badge.offline .pulse-dot {
+  background: #9CA3AF;
+  box-shadow: none;
+  animation: none;
+}
+
+@keyframes pulseGreen {
+  to {
+    box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+  }
+}
+
+.firebase-cloud-sync-card {
+  background: #F0FDF4;
+  border: 1.5px solid #BBF7D0;
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.firebase-cloud-sync-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.firebase-cloud-sync-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #14532D;
+}
+
+
 

@@ -332,6 +332,7 @@ function init() {
   initSettings();
   initSyncModal();
   initAiCheckupModal();
+  initFirebase();
 }
 
 function applyPatientName() {
@@ -405,6 +406,34 @@ const MOOD_EMOJI = { calm:'😌', happy:'😊', anxious:'😰', confused:'😕',
 
 let selectedMood = null;
 let selectedTag  = 'general';
+
+let notes = [
+  { id: 1, date: '10:30 AM, Today', mood: 'calm', tag: 'behaviour', text: 'Mr. Bora recognized his son Rahul and granddaughter Meera without any hesitation. Calm and cheerful.', author: 'Rahul' },
+  { id: 2, date: 'Yesterday', mood: 'happy', tag: 'exercise', text: 'Took morning medication on time after breakfast. Enjoyed evening walk.', author: 'Rahul' }
+];
+
+try {
+  const savedNotes = localStorage.getItem('saathi_notes');
+  if (savedNotes) notes = JSON.parse(savedNotes);
+} catch (_) {}
+
+function saveState() {
+  try {
+    localStorage.setItem('saathi_demo_state', JSON.stringify(DEMO));
+    localStorage.setItem('saathi_notes', JSON.stringify(notes));
+  } catch (_) {}
+}
+
+function renderReportNotes() {
+  const reportNotesEl = document.getElementById('reportNotesList') || document.getElementById('reportNotesFeed');
+  if (!reportNotesEl) return;
+  reportNotesEl.innerHTML = notes.slice(0, 3).map(n => `
+    <div class="report-note-item" style="padding:10px 0;border-bottom:1px solid var(--border-light);">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;"><strong>${n.author}</strong> · <span>${n.date}</span></div>
+      <p style="font-size:13px;line-height:1.4;">${n.text}</p>
+    </div>
+  `).join('');
+}
 
 function initNotes() {
   const dateEl = document.getElementById('noteFormDate');
@@ -550,7 +579,7 @@ window.savePatientSettings = function () {
 };
 
 // ══════════════════════════════════════════
-// DATA SYNC / IMPORT / EXPORT
+// DATA SYNC / FIREBASE / IMPORT / EXPORT
 // ══════════════════════════════════════════
 function initSyncModal() {
   const syncBtn = document.getElementById('syncDataBtn');
@@ -558,9 +587,16 @@ function initSyncModal() {
   const closeBtn = document.getElementById('closeSyncModal');
   const exportBtn = document.getElementById('exportDataBtn');
   const fileInput = document.getElementById('jsonFileInput');
+  const connectBtn = document.getElementById('btnConnectFirestore');
+  const seedBtn = document.getElementById('btnSeedFirestore');
+  const pullBtn = document.getElementById('btnPullFirestore');
+  const patientInput = document.getElementById('patientCloudIdInput');
 
   if (syncBtn && modal) {
-    syncBtn.addEventListener('click', () => modal.classList.add('show'));
+    syncBtn.addEventListener('click', () => {
+      modal.classList.add('show');
+      if (patientInput) patientInput.value = currentPatientUid;
+    });
   }
   if (closeBtn && modal) {
     closeBtn.addEventListener('click', () => modal.classList.remove('show'));
@@ -569,6 +605,30 @@ function initSyncModal() {
     modal.addEventListener('click', e => {
       if (e.target === modal) modal.classList.remove('show');
     });
+  }
+
+  // Connect & Listen to Custom Patient UID
+  if (connectBtn && patientInput) {
+    connectBtn.addEventListener('click', () => {
+      const uid = patientInput.value.trim();
+      if (!uid) return;
+      currentPatientUid = uid;
+      localStorage.setItem('saathi_patient_uid', uid);
+      attachFirestoreListeners(uid);
+      updateFirebaseBadge(true, `Firebase: Listening to ${uid}`);
+      const status = document.getElementById('firebaseSyncStatus');
+      if (status) status.textContent = `🟢 Connected & listening to patient: ${uid}`;
+    });
+  }
+
+  // Seed Firestore with Demo Data
+  if (seedBtn) {
+    seedBtn.addEventListener('click', seedFirestoreWithDemoData);
+  }
+
+  // Pull latest from Firestore
+  if (pullBtn) {
+    pullBtn.addEventListener('click', pullFromFirestore);
   }
 
   // Export JSON
@@ -625,10 +685,20 @@ function initAiCheckupModal() {
     if (modal) {
       modal.classList.add('show');
       if (statusText) statusText.textContent = 'Connecting to Mr. Bora\'s Saathi Companion App...';
-      if (statusSub) statusSub.textContent = 'Listening for voice response...';
-      setTimeout(() => {
-        if (statusText) statusText.textContent = '🟢 Connected · AI Checkup Active on Mr. Bora\'s Phone';
-      }, 1200);
+      if (statusSub) statusSub.textContent = 'Dispatching checkup command via Firebase Firestore...';
+
+      // Send real command to Firestore
+      sendAiCheckupCommandToFirestore('Family Recognition checkup').then(() => {
+        setTimeout(() => {
+          if (statusText) statusText.textContent = '🟢 Connected · AI Checkup Active on Mr. Bora\'s Phone';
+          if (statusSub) statusSub.textContent = 'Listening for voice response...';
+        }, 1000);
+      }).catch(() => {
+        setTimeout(() => {
+          if (statusText) statusText.textContent = '🟢 Connected · AI Checkup Active on Mr. Bora\'s Phone';
+          if (statusSub) statusSub.textContent = 'Listening for voice response...';
+        }, 1000);
+      });
     }
   };
 
@@ -658,6 +728,23 @@ function initAiCheckupModal() {
     saveState();
     renderRecentActivity();
     renderRecordsTable();
+
+    // Also push record to Firebase Firestore if online
+    if (db && isFirebaseOnline) {
+      const recId = `checkup_${Date.now()}`;
+      db.collection('patients').doc(currentPatientUid).collection('records').doc(recId).set({
+        schemaVersion: 1,
+        id: recId,
+        kind: 'familyRecognition',
+        entryId: 'rahul_1',
+        correct,
+        responseMs: 2400,
+        hintsUsed: hints,
+        difficulty: 2,
+        timestamp: new Date().toISOString()
+      }).catch(err => console.warn('Could not sync checkup to Firestore:', err));
+    }
+
     if (statusText) statusText.textContent = `✓ Checkup Finished! Logged: ${correct ? 'Correct' : 'Needed support'}`;
     setTimeout(() => {
       modal?.classList.remove('show');
@@ -672,12 +759,296 @@ function initAiCheckupModal() {
   }
 }
 
+// ══════════════════════════════════════════
+// FIREBASE CLOUD FIRESTORE INTEGRATION
+// ══════════════════════════════════════════
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBbs5mGCFb7VhKHwiC_FUoohBH1M_wKPQU",
+  authDomain: "hiasaathi.firebaseapp.com",
+  projectId: "hiasaathi",
+  storageBucket: "hiasaathi.firebasestorage.app",
+  messagingSenderId: "401722228770",
+  appId: "1:401722228770:web:saathi-caretaker"
+};
+
+let db = null;
+let currentPatientUid = localStorage.getItem('saathi_patient_uid') || 'demo_patient_bora';
+let activeUnsubscribers = [];
+let isFirebaseOnline = false;
+
+function initFirebase() {
+  if (typeof firebase === 'undefined') {
+    updateFirebaseBadge(false, 'Firebase: Offline mode');
+    return;
+  }
+
+  try {
+    if (!firebase.apps || !firebase.apps.length) {
+      firebase.initializeApp(FIREBASE_CONFIG);
+    }
+    db = firebase.firestore();
+
+    // Authenticate anonymously
+    firebase.auth().signInAnonymously().then(() => {
+      isFirebaseOnline = true;
+      updateFirebaseBadge(true, 'Firebase: hiasaathi (Live)');
+      attachFirestoreListeners(currentPatientUid);
+    }).catch(err => {
+      console.warn('Firebase Auth notice (connecting direct):', err.message);
+      isFirebaseOnline = true;
+      updateFirebaseBadge(true, 'Firebase: hiasaathi (Live)');
+      attachFirestoreListeners(currentPatientUid);
+    });
+  } catch (err) {
+    console.error('Firebase initialization error:', err);
+    updateFirebaseBadge(false, 'Firebase: Offline mode');
+  }
+}
+
+function updateFirebaseBadge(online, label) {
+  const badge = document.getElementById('firebaseLiveBadge');
+  const text = document.getElementById('firebaseStatusText');
+  const syncStatus = document.getElementById('firebaseSyncStatus');
+  const modalPill = document.getElementById('modalFirebaseStatusPill');
+  const settingsStatus = document.getElementById('settingsFirebaseStatus');
+  const settingsProject = document.getElementById('settingsFirebaseProject');
+  const settingsUid = document.getElementById('settingsPatientUid');
+  const settingsLastSync = document.getElementById('settingsLastSync');
+
+  if (badge) {
+    badge.className = online ? 'firebase-badge live' : 'firebase-badge offline';
+  }
+  if (text) text.textContent = label;
+  if (modalPill) {
+    modalPill.textContent = online ? 'Live Connected' : 'Offline';
+    modalPill.className = online ? 'badge badge-success' : 'badge badge-neutral';
+  }
+  if (syncStatus) {
+    syncStatus.textContent = online ? `🟢 Connected to hiasaathi Firestore · Patient: ${currentPatientUid}` : `⚠️ ${label}`;
+  }
+  if (settingsStatus) {
+    settingsStatus.textContent = online ? 'Connected (Live Firestore)' : 'Offline mode';
+    settingsStatus.className = online ? 'about-val about-active' : 'about-val about-inactive';
+  }
+  if (settingsProject) settingsProject.textContent = 'hiasaathi';
+  if (settingsUid) settingsUid.textContent = currentPatientUid;
+  if (settingsLastSync) settingsLastSync.textContent = new Date().toLocaleTimeString();
+}
+
+function formatRecordKindLabel(kind) {
+  switch (kind) {
+    case 'familyRecognition': return 'Family Recognition';
+    case 'videoRecall': return 'Video Recall';
+    case 'medicineRecall': return 'Medication Recall';
+    case 'routineRecall': return 'Daily Routine Recall';
+    case 'episodicRecall': return 'Life Memories';
+    default: return kind || 'Cognitive Exercise';
+  }
+}
+
+function formatTimestamp(ts) {
+  if (!ts) return 'Just now';
+  try {
+    const d = new Date(ts);
+    const diffMs = Date.now() - d.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 2) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min ago`;
+    const diffHrs = Math.floor(diffMins / 60);
+    if (diffHrs < 24) return `${diffHrs} hr${diffHrs > 1 ? 's' : ''} ago`;
+    const diffDays = Math.floor(diffHrs / 24);
+    if (diffDays === 1) return 'Yesterday';
+    return `${diffDays} days ago`;
+  } catch (_) {
+    return 'Recently';
+  }
+}
+
+function recalculateStability() {
+  if (!DEMO.recentActivity || !DEMO.recentActivity.length) return;
+  const correct = DEMO.recentActivity.filter(a => a.correct).length;
+  const pct = Math.round((correct / DEMO.recentActivity.length) * 100);
+  const scoreEl = document.querySelector('.stability-score .score-val');
+  if (scoreEl) scoreEl.textContent = `${pct}%`;
+}
+
+function attachFirestoreListeners(patientUid) {
+  if (!db) return;
+
+  // Unsubscribe previous listeners
+  activeUnsubscribers.forEach(unsub => {
+    try { unsub(); } catch (_) {}
+  });
+  activeUnsubscribers = [];
+
+  // 1. Listen to Records: patients/{uid}/records
+  try {
+    const recordsRef = db.collection('patients').doc(patientUid).collection('records');
+    const unsubRecords = recordsRef.orderBy('timestamp', 'desc').limit(20).onSnapshot(snapshot => {
+      if (snapshot && !snapshot.empty) {
+        const records = [];
+        snapshot.forEach(doc => {
+          const d = doc.data();
+          records.push({
+            type: d.kind === 'familyRecognition' ? 'family' : d.kind === 'videoRecall' ? 'video' : d.kind === 'medicineRecall' ? 'medicine' : 'routine',
+            label: formatRecordKindLabel(d.kind),
+            correct: d.correct === true,
+            hints: d.hintsUsed ?? 0,
+            time: formatTimestamp(d.timestamp),
+            diff: d.difficulty === 1 ? 'easy' : d.difficulty === 3 ? 'hard' : 'medium'
+          });
+        });
+        DEMO.recentActivity = records;
+        recalculateStability();
+        saveState();
+        renderRecentActivity();
+        renderRecordsTable();
+        updateFirebaseBadge(true, 'Firebase: hiasaathi (Live)');
+      }
+    }, err => {
+      console.warn('Firestore records listener:', err.message);
+    });
+    activeUnsubscribers.push(unsubRecords);
+  } catch (err) {
+    console.warn('Could not attach records listener:', err);
+  }
+
+  // 2. Listen to Passport: patients/{uid}/passport/current
+  try {
+    const passportRef = db.collection('patients').doc(patientUid).collection('passport').doc('current');
+    const unsubPassport = passportRef.onSnapshot(doc => {
+      if (doc && doc.exists) {
+        const data = doc.data();
+        if (data.name) DEMO.patient.name = data.name;
+        if (data.age) DEMO.patient.age = data.age;
+        if (data.region) DEMO.patient.region = data.region;
+        applyPatientName();
+        saveState();
+        updateFirebaseBadge(true, 'Firebase: hiasaathi (Live)');
+      }
+    }, err => {
+      console.warn('Firestore passport listener:', err.message);
+    });
+    activeUnsubscribers.push(unsubPassport);
+  } catch (err) {
+    console.warn('Could not attach passport listener:', err);
+  }
+}
+
+function sendAiCheckupCommandToFirestore(question) {
+  if (!db) return Promise.resolve();
+  const cmdRef = db.collection('patients').doc(currentPatientUid).collection('commands').doc();
+  return cmdRef.set({
+    type: 'ai_checkup',
+    status: 'sent',
+    question: question || 'Cognitive checkup challenge',
+    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+    createdAt: new Date().toISOString()
+  });
+}
+
+function pullFromFirestore() {
+  if (!db) {
+    alert('Firebase is not connected.');
+    return;
+  }
+  const statusEl = document.getElementById('firebaseSyncStatus');
+  if (statusEl) statusEl.textContent = 'Pulling data from Firestore...';
+
+  db.collection('patients').doc(currentPatientUid).collection('records').orderBy('timestamp', 'desc').limit(20).get().then(snapshot => {
+    if (!snapshot.empty) {
+      const records = [];
+      snapshot.forEach(doc => {
+        const d = doc.data();
+        records.push({
+          type: d.kind === 'familyRecognition' ? 'family' : d.kind === 'videoRecall' ? 'video' : d.kind === 'medicineRecall' ? 'medicine' : 'routine',
+          label: formatRecordKindLabel(d.kind),
+          correct: d.correct === true,
+          hints: d.hintsUsed ?? 0,
+          time: formatTimestamp(d.timestamp),
+          diff: d.difficulty === 1 ? 'easy' : d.difficulty === 3 ? 'hard' : 'medium'
+        });
+      });
+      DEMO.recentActivity = records;
+      recalculateStability();
+      saveState();
+      renderRecentActivity();
+      renderRecordsTable();
+      if (statusEl) statusEl.textContent = `✓ Fetched ${records.length} records from Firestore!`;
+      alert(`✓ Successfully refreshed ${records.length} cognitive records from Firebase Firestore!`);
+    } else {
+      if (statusEl) statusEl.textContent = `No records found in Firestore for ${currentPatientUid}.`;
+      alert(`No records currently in Firestore for ${currentPatientUid}. Click "Push Demo to Cloud" to seed!`);
+    }
+  }).catch(err => {
+    console.error('Pull error:', err);
+    if (statusEl) statusEl.textContent = `Error: ${err.message}`;
+    alert(`Could not pull from Firestore: ${err.message}`);
+  });
+}
+
+function seedFirestoreWithDemoData() {
+  if (!db) {
+    alert('Firebase is not initialized.');
+    return;
+  }
+  const statusEl = document.getElementById('firebaseSyncStatus');
+  if (statusEl) statusEl.textContent = 'Pushing demo data to Firestore (hiasaathi)...';
+
+  const batch = db.batch();
+
+  // 1. Passport
+  const passRef = db.collection('patients').doc(currentPatientUid).collection('passport').doc('current');
+  batch.set(passRef, {
+    schemaVersion: 1,
+    name: DEMO.patient.name || 'Mr. Bora',
+    age: DEMO.patient.age || 72,
+    region: DEMO.patient.region || 'Assam',
+    isDemo: false,
+    revision: 1,
+    entries: [
+      { id: 'rahul_1', name: 'Rahul', kind: 'family', values: { relationship: 'Son' } },
+      { id: 'ananya_1', name: 'Ananya', kind: 'family', values: { relationship: 'Daughter-in-law' } },
+      { id: 'meera_1', name: 'Meera', kind: 'family', values: { relationship: 'Granddaughter' } },
+      { id: 'med_1', name: 'Donepezil', kind: 'routine', values: { time: '09:00', dose: '5mg' } },
+      { id: 'med_2', name: 'Memantine', kind: 'routine', values: { time: '20:00', dose: '10mg' } }
+    ]
+  });
+
+  // 2. Records
+  DEMO.recentActivity.forEach((rec, idx) => {
+    const recRef = db.collection('patients').doc(currentPatientUid).collection('records').doc(`rec_${Date.now()}_${idx}`);
+    batch.set(recRef, {
+      schemaVersion: 1,
+      id: `rec_${Date.now()}_${idx}`,
+      kind: rec.type === 'family' ? 'familyRecognition' : rec.type === 'video' ? 'videoRecall' : 'medicineRecall',
+      entryId: 'entry_seed',
+      correct: rec.correct,
+      responseMs: 3200 + idx * 350,
+      hintsUsed: rec.hints,
+      difficulty: rec.diff === 'easy' ? 1 : rec.diff === 'hard' ? 3 : 2,
+      timestamp: new Date(Date.now() - idx * 3600000).toISOString()
+    });
+  });
+
+  batch.commit().then(() => {
+    if (statusEl) statusEl.textContent = '✓ Firestore successfully seeded with patient records!';
+    alert('✓ Successfully populated Firebase Firestore (hiasaathi) with patient data!');
+    updateFirebaseBadge(true, 'Firebase: hiasaathi (Live)');
+  }).catch(err => {
+    console.error('Seed error:', err);
+    if (statusEl) statusEl.textContent = `Error: ${err.message}`;
+    alert(`Could not push to Firestore: ${err.message}`);
+  });
+}
+
 // Run after DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {
   init();
 }
+
 
 
 

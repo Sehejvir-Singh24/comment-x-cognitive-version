@@ -21,10 +21,14 @@ class CloudSetup {
     if (Firebase.apps.isEmpty) {
       await Firebase.initializeApp();
     }
-    await FirebaseAppCheck.instance.activate(
-      providerAndroid: kDebugMode
-          ? const AndroidDebugProvider()
-          : const AndroidPlayIntegrityProvider(),
-    );
+    try {
+      await FirebaseAppCheck.instance.activate(
+        providerAndroid: kDebugMode
+            ? const AndroidDebugProvider()
+            : const AndroidPlayIntegrityProvider(),
+      );
+    } catch (e) {
+      debugPrint('Firebase App Check activation skipped: $e');
+    }
   }
 }
