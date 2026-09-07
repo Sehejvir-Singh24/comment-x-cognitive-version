@@ -18,12 +18,29 @@ class MemoryEntry {
     'values': values,
     'photo': photo,
   };
-  factory MemoryEntry.fromJson(Map<String, dynamic> json) => MemoryEntry(
-    id: json['id'] as String,
-    kind: MemoryKind.values.byName(json['kind'] as String),
-    values: Map<String, String>.from(json['values'] as Map),
-    photo: json['photo'] as String?,
-  );
+  factory MemoryEntry.fromJson(Map<String, dynamic> json) {
+    final rawValues =
+        json['values'] is Map ? (json['values'] as Map) : <String, dynamic>{};
+    final Map<String, String> values = {};
+    rawValues.forEach((k, v) {
+      if (v != null) values[k.toString()] = v.toString();
+    });
+    if (json['name'] != null && !values.containsKey('name')) {
+      values['name'] = json['name'].toString();
+    }
+    final rawKind = json['kind'] as String?;
+    final kind = MemoryKind.values.firstWhere(
+      (k) => k.name == rawKind,
+      orElse: () => MemoryKind.memory,
+    );
+    return MemoryEntry(
+      id: (json['id'] as String?) ??
+          'entry_${DateTime.now().microsecondsSinceEpoch}',
+      kind: kind,
+      values: values,
+      photo: json['photo'] as String?,
+    );
+  }
 }
 
 class Passport {
@@ -56,17 +73,26 @@ class Passport {
     'entries': entries.map((e) => e.toJson()).toList(),
   };
   factory Passport.fromJson(Map<String, dynamic> json) {
-    if (json['schemaVersion'] != 1) {
+    if (json['schemaVersion'] != null && json['schemaVersion'] != 1) {
       throw const FormatException('Unsupported passport version');
     }
+    final rawEntries = json['entries'];
+    final entries = <MemoryEntry>[];
+    if (rawEntries is List) {
+      for (final e in rawEntries) {
+        if (e is Map) {
+          try {
+            entries.add(MemoryEntry.fromJson(Map<String, dynamic>.from(e)));
+          } catch (_) {}
+        }
+      }
+    }
     return Passport(
-      name: json['name'] as String,
-      age: json['age'] as int,
-      region: json['region'] as String,
-      isDemo: json['isDemo'] as bool,
-      entries: (json['entries'] as List)
-          .map((e) => MemoryEntry.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList(),
+      name: (json['name'] as String?) ?? 'Mr. Bora',
+      age: (json['age'] is num) ? (json['age'] as num).toInt() : 72,
+      region: (json['region'] as String?) ?? 'Assam',
+      isDemo: json['isDemo'] == true,
+      entries: rawEntries == null ? Passport.demo().entries : entries,
     );
   }
   factory Passport.demo() => const Passport(

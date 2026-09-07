@@ -31,12 +31,16 @@ class PassportStore {
   Future<Passport> load() =>
       AppDatabase.use(_directory, (db) => db.loadPassport());
 
-  Future<void> save(Passport passport) => _exclusive(() => _write(passport));
+  Future<void> save(Passport passport) =>
+      _exclusive(() => _write(passport, enqueueSync: true));
 
-  Future<void> _write(Passport passport) async {
+  Future<void> saveWithoutSync(Passport passport) =>
+      _exclusive(() => _write(passport, enqueueSync: false));
+
+  Future<void> _write(Passport passport, {bool enqueueSync = true}) async {
     final previousPhotos = await AppDatabase.use(_directory, (db) async {
       final previous = await db.loadPassport();
-      await db.savePassport(passport);
+      await db.savePassport(passport, enqueueSync: enqueueSync);
       return previous.entries.map((e) => e.photo).whereType<String>().toSet();
     });
     final kept = passport.entries

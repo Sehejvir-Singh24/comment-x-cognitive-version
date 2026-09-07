@@ -147,14 +147,15 @@ class AppDatabase extends GeneratedDatabase {
     return Passport.fromJson(data);
   }
 
-  Future<void> savePassport(Passport passport) => transaction(() async {
+  Future<void> savePassport(Passport passport, {bool enqueueSync = true}) =>
+      transaction(() async {
     final data = passport.toJson()..remove('entries');
     await customStatement(
       'INSERT OR REPLACE INTO patient_profiles VALUES (1, ?)',
       [jsonEncode(data)],
     );
     await customStatement('DELETE FROM memory_entries');
-    if (await setting('syncConsent') == 'yes') {
+    if (enqueueSync && await setting('syncConsent') == 'yes') {
       final cloud = passport.toJson();
       cloud['entries'] = passport.entries
           .map((e) => e.toJson()..remove('photo'))

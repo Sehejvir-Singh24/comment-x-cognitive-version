@@ -352,95 +352,74 @@
 
     <!-- ══════════ PAGE: MEMORY PASSPORT ══════════ -->
     <section class="page" id="page-passport">
-      <div class="page-hero-small">
-        <h2>Memory Passport</h2>
-        <p>Patient profile created by the caretaker; used by Saathi to personalise all exercises.</p>
+      <div class="page-header-row">
+        <div>
+          <h2>Memory Passport</h2>
+          <p>Patient profile & memories created by the caretaker; synchronized live with Saathi companion on the patient's phone.</p>
+        </div>
+        <div class="passport-header-actions">
+          <span class="passport-badge-live" id="passportLiveBadge">
+            <span class="pulse-dot"></span> Live Linked (Firestore)
+          </span>
+          <button class="btn-primary" id="btnEditPassportProfile">
+            <span>✏️</span> Edit Profile
+          </button>
+        </div>
       </div>
 
       <div class="passport-grid">
-        <div class="card passport-card profile-card">
+        <!-- Patient Profile Card -->
+        <div class="card passport-card profile-card" id="passportProfileCard">
           <div class="profile-top">
-            <div class="profile-avatar">B</div>
+            <div class="profile-avatar" id="passportAvatar">B</div>
             <div>
-              <h3 class="profile-name">Mr. Bora</h3>
-              <p class="profile-meta">Age 72 · Assam, North-East India</p>
-              <span class="profile-demo-tag">Demo Profile</span>
+              <h3 class="profile-name" id="passportProfileName">Mr. Bora</h3>
+              <p class="profile-meta" id="passportProfileMeta">Age 72 · Assam, North-East India</p>
+              <span class="profile-demo-tag" id="passportProfileTag">Active Profile</span>
             </div>
           </div>
           <div class="profile-fav">
             <span class="fav-label">Favourite Activity</span>
-            <span class="fav-value">🌱 Gardening</span>
+            <span class="fav-value" id="passportFavActivity">🌱 Gardening</span>
           </div>
         </div>
 
+        <!-- Family Members Card -->
         <div class="card passport-card">
-          <div class="card-header"><h2 class="card-title">Family Members</h2></div>
-          <ul class="passport-list">
-            <li class="passport-item">
-              <div class="passport-avatar teal">R</div>
-              <div>
-                <span class="p-name">Rahul</span>
-                <span class="p-rel">Son · Visits Sunday · Cricket</span>
-              </div>
-            </li>
-            <li class="passport-item">
-              <div class="passport-avatar amber">A</div>
-              <div>
-                <span class="p-name">Ananya</span>
-                <span class="p-rel">Daughter</span>
-              </div>
-            </li>
-            <li class="passport-item">
-              <div class="passport-avatar rose">M</div>
-              <div>
-                <span class="p-name">Meera</span>
-                <span class="p-rel">Wife</span>
-              </div>
-            </li>
+          <div class="card-header-actions">
+            <h2 class="card-title">Family Members</h2>
+            <button class="btn-add-item" id="btnAddFamilyMember">
+              <span>+</span> Add Member
+            </button>
+          </div>
+          <ul class="passport-list" id="passportFamilyList">
+            <!-- Dynamic items populated by renderPassportPage() -->
           </ul>
         </div>
 
+        <!-- Daily Routine & Medicine Card -->
         <div class="card passport-card">
-          <div class="card-header"><h2 class="card-title">Daily Routine</h2></div>
-          <ul class="passport-list timeline">
-            <li class="passport-item timeline-item">
-              <span class="timeline-time">08:00</span>
-              <div class="timeline-dot"></div>
-              <span class="timeline-label">Breakfast</span>
-            </li>
-            <li class="passport-item timeline-item">
-              <span class="timeline-time">09:00</span>
-              <div class="timeline-dot medicine"></div>
-              <span class="timeline-label">💊 Medicine</span>
-            </li>
-            <li class="passport-item timeline-item">
-              <span class="timeline-time">17:00</span>
-              <div class="timeline-dot"></div>
-              <span class="timeline-label">Evening Walk</span>
-            </li>
-            <li class="passport-item timeline-item">
-              <span class="timeline-time">20:00</span>
-              <div class="timeline-dot medicine"></div>
-              <span class="timeline-label">💊 Medicine</span>
-            </li>
+          <div class="card-header-actions">
+            <h2 class="card-title">Daily Routine & Medications</h2>
+            <button class="btn-add-item" id="btnAddRoutineItem">
+              <span>+</span> Add Schedule
+            </button>
+          </div>
+          <ul class="passport-list timeline" id="passportRoutineList">
+            <!-- Dynamic items populated by renderPassportPage() -->
           </ul>
         </div>
 
+        <!-- Important Places Card -->
         <div class="card passport-card">
-          <div class="card-header"><h2 class="card-title">Important Places</h2></div>
-          <ul class="passport-list">
-            <li class="passport-item">
-              <div class="place-icon">🏠</div>
-              <div><span class="p-name">Home — Guwahati</span></div>
-            </li>
-            <li class="passport-item">
-              <div class="place-icon">🌳</div>
-              <div><span class="p-name">Neighbourhood Garden</span></div>
-            </li>
-            <li class="passport-item">
-              <div class="place-icon">🕌</div>
-              <div><span class="p-name">Local Temple</span></div>
-            </li>
+          <div class="card-header-actions">
+            <h2 class="card-title">Important Places</h2>
+            <button class="btn-add-item" id="btnAddPlaceItem">
+              <span>+</span> Add Place
+            </button>
+          </div>
+          <ul class="passport-list" id="passportPlacesList">
+            <!-- Dynamic items populated by renderPassportPage() -->
           </ul>
         </div>
       </div>
@@ -924,8 +903,164 @@
         </div>
       </div>
     </div>
+
+  <!-- ── Modal: Edit Patient Profile ────────────────── -->
+  <div class="modal-overlay" id="passportProfileModal">
+    <div class="modal-card" style="max-width:480px;">
+      <div class="modal-header">
+        <h3>✏️ Edit Patient Profile</h3>
+        <button class="modal-close" id="closeProfileModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="profileForm" onsubmit="event.preventDefault();">
+          <div class="form-group">
+            <label class="form-label" for="editProfileName">Patient Name</label>
+            <input type="text" id="editProfileName" class="form-input" required placeholder="e.g. Mr. Bora" />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="editProfileAge">Age</label>
+              <input type="number" id="editProfileAge" class="form-input" min="40" max="120" required placeholder="72" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="editProfileRegion">Region / Location</label>
+              <input type="text" id="editProfileRegion" class="form-input" required placeholder="Assam, North-East India" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="editProfileActivity">Favourite Activity / Hobby</label>
+            <input type="text" id="editProfileActivity" class="form-input" placeholder="e.g. 🌱 Gardening" />
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
+            <button type="button" class="btn-ghost" id="cancelProfileBtn">Cancel</button>
+            <button type="button" class="btn-primary" id="saveProfileBtn">Save & Sync to App</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 
-  <script src="app.js"></script>
+  <!-- ── Modal: Add / Edit Family Member ───────────── -->
+  <div class="modal-overlay" id="passportFamilyModal">
+    <div class="modal-card" style="max-width:480px;">
+      <div class="modal-header">
+        <h3 id="familyModalTitle">👥 Family Member</h3>
+        <button class="modal-close" id="closeFamilyModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="familyForm" onsubmit="event.preventDefault();">
+          <input type="hidden" id="editFamilyId" value="" />
+          <div class="form-group">
+            <label class="form-label" for="editFamilyName">Name</label>
+            <input type="text" id="editFamilyName" class="form-input" required placeholder="e.g. Rahul" />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="editFamilyRel">Relationship</label>
+              <input type="text" id="editFamilyRel" class="form-input" required placeholder="e.g. Son, Daughter, Wife" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="editFamilyColor">Avatar Color</label>
+              <select id="editFamilyColor" class="form-select">
+                <option value="teal">Teal / Emerald</option>
+                <option value="amber">Amber / Orange</option>
+                <option value="rose">Rose / Coral</option>
+                <option value="purple">Purple</option>
+                <option value="blue">Blue</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="editFamilyVisits">Visiting Routine / Schedule</label>
+            <input type="text" id="editFamilyVisits" class="form-input" placeholder="e.g. Visits Sunday, Calls daily" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="editFamilyActivity">Shared Memory / Activity</label>
+            <input type="text" id="editFamilyActivity" class="form-input" placeholder="e.g. Cricket, Morning tea, Walking" />
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
+            <button type="button" class="btn-ghost" id="cancelFamilyBtn">Cancel</button>
+            <button type="button" class="btn-primary" id="saveFamilyBtn">Save & Sync to App</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal: Add / Edit Routine or Medicine ──────── -->
+  <div class="modal-overlay" id="passportRoutineModal">
+    <div class="modal-card" style="max-width:480px;">
+      <div class="modal-header">
+        <h3 id="routineModalTitle">⏰ Daily Schedule Item</h3>
+        <button class="modal-close" id="closeRoutineModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="routineForm" onsubmit="event.preventDefault();">
+          <input type="hidden" id="editRoutineId" value="" />
+          <div class="form-row">
+            <div class="form-group" style="flex:1;">
+              <label class="form-label" for="editRoutineTime">Time</label>
+              <input type="time" id="editRoutineTime" class="form-input" required value="09:00" />
+            </div>
+            <div class="form-group" style="flex:1;">
+              <label class="form-label" for="editRoutineKind">Category</label>
+              <select id="editRoutineKind" class="form-select">
+                <option value="routine">Routine Activity</option>
+                <option value="medicine">💊 Medication</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="editRoutineName">Title / Name</label>
+            <input type="text" id="editRoutineName" class="form-input" required placeholder="e.g. Breakfast, Donepezil, Evening Walk" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="editRoutineInstructions">Dosage / Caregiver Instructions</label>
+            <input type="text" id="editRoutineInstructions" class="form-input" placeholder="e.g. 5mg with water after food" />
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
+            <button type="button" class="btn-ghost" id="cancelRoutineBtn">Cancel</button>
+            <button type="button" class="btn-primary" id="saveRoutineBtn">Save & Sync to App</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal: Add / Edit Place ───────────────────── -->
+  <div class="modal-overlay" id="passportPlaceModal">
+    <div class="modal-card" style="max-width:440px;">
+      <div class="modal-header">
+        <h3 id="placeModalTitle">📍 Important Place</h3>
+        <button class="modal-close" id="closePlaceModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="placeForm" onsubmit="event.preventDefault();">
+          <input type="hidden" id="editPlaceId" value="" />
+          <div class="form-group">
+            <label class="form-label" for="editPlaceName">Place Name & Location</label>
+            <input type="text" id="editPlaceName" class="form-input" required placeholder="e.g. Home — Guwahati, Local Temple" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="editPlaceIcon">Icon / Landmark Type</label>
+            <select id="editPlaceIcon" class="form-select">
+              <option value="🏠">🏠 Home</option>
+              <option value="🌳">🌳 Garden / Park</option>
+              <option value="🕌">🕌 Temple / Place of Worship</option>
+              <option value="🏥">🏥 Clinic / Hospital</option>
+              <option value="🏪">🏪 Local Market / Shop</option>
+              <option value="📍">📍 Other Landmark</option>
+            </select>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
+            <button type="button" class="btn-ghost" id="cancelPlaceBtn">Cancel</button>
+            <button type="button" class="btn-primary" id="savePlaceBtn">Save & Sync to App</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=2.1"></script>
 </body>
 </html>

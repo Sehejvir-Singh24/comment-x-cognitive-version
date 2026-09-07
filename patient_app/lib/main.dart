@@ -70,6 +70,7 @@ class _LauncherHomeState extends State<LauncherHome>
   String? _welcomeMessage;
   int _checkInIndex = 0;
   bool _greeted = false;
+  StreamSubscription? _passportSub;
   @override
   void initState() {
     super.initState();
@@ -89,6 +90,14 @@ class _LauncherHomeState extends State<LauncherHome>
     });
     refresh();
     refreshPassport();
+    _passportSub = SyncService.startPassportListener(
+      onPassportUpdated: (updated) {
+        if (mounted) {
+          setState(() => passport = updated);
+          _welcome(updated);
+        }
+      },
+    );
   }
 
   Future<void> refreshPassport() async {
@@ -106,6 +115,7 @@ class _LauncherHomeState extends State<LauncherHome>
 
   @override
   void dispose() {
+    _passportSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     LauncherBridge.channel.setMethodCallHandler(null);
     _checkInTimer?.cancel();
@@ -119,6 +129,13 @@ class _LauncherHomeState extends State<LauncherHome>
     if (_foreground) {
       refresh();
       _startCheckIns();
+      SyncService.pullPassport(
+        onPassportUpdated: (updated) {
+          if (mounted) {
+            setState(() => passport = updated);
+          }
+        },
+      );
     } else {
       _checkInTimer?.cancel();
     }

@@ -6,7 +6,29 @@
 
 // ── Demo data ──────────────────────────────────────
 const DEMO = {
-  patient: { name: 'Mr. Bora', age: 72, region: 'Assam' },
+  patient: { name: 'Mr. Bora', age: 72, region: 'Assam, North-East India' },
+
+  passport: {
+    schemaVersion: 1,
+    name: 'Mr. Bora',
+    age: 72,
+    region: 'Assam, North-East India',
+    isDemo: false,
+    revision: 1,
+    entries: [
+      { id: 'rahul', kind: 'family', values: { name: 'Rahul', relationship: 'Son', visits: 'Sunday', sharedActivity: 'Cricket', color: 'teal' } },
+      { id: 'ananya', kind: 'family', values: { name: 'Ananya', relationship: 'Daughter', visits: 'Calls daily', sharedActivity: 'Music', color: 'amber' } },
+      { id: 'meera', kind: 'family', values: { name: 'Meera', relationship: 'Wife', visits: 'Lives at home', sharedActivity: 'Tea time', color: 'rose' } },
+      { id: 'breakfast', kind: 'routine', values: { name: 'Breakfast', time: '08:00' } },
+      { id: 'morning-medicine', kind: 'routine', values: { name: 'Medicine', time: '09:00', instructions: 'Morning dose with water' } },
+      { id: 'walk', kind: 'routine', values: { name: 'Evening Walk', time: '17:00' } },
+      { id: 'evening-medicine', kind: 'routine', values: { name: 'Medicine', time: '20:00', instructions: 'Evening dose after dinner' } },
+      { id: 'gardening', kind: 'activity', values: { name: 'Gardening' } },
+      { id: 'place-home', kind: 'place', values: { name: 'Home — Guwahati', icon: '🏠' } },
+      { id: 'place-garden', kind: 'place', values: { name: 'Neighbourhood Garden', icon: '🌳' } },
+      { id: 'place-temple', kind: 'place', values: { name: 'Local Temple', icon: '🕌' } }
+    ]
+  },
 
   stabilityWeeks: [
     { label: 'Wk 1', value: 86 },
@@ -77,6 +99,9 @@ function showPage(id) {
   const titleEl = document.getElementById('pageTitle');
   if (titleEl) titleEl.textContent = pageTitles[id] ?? id;
   closeSidebar();
+  if (id === 'passport') {
+    renderPassportPage();
+  }
   // Re-run animations for that page
   target?.querySelectorAll('[data-animate]').forEach((el, i) => {
     el.style.animationDelay = `${i * 0.06}s`;
@@ -278,6 +303,22 @@ document.querySelectorAll('.alert-dismiss').forEach(btn => {
   });
 });
 
+// ── Notes State (Declared before init) ─────────────────
+const MOOD_EMOJI = { calm:'😌', happy:'😊', anxious:'😰', confused:'😕', tired:'😴', agitated:'😤' };
+
+let selectedMood = null;
+let selectedTag  = 'general';
+
+let notes = [
+  { id: 1, date: '10:30 AM, Today', mood: 'calm', tag: 'behaviour', text: 'Mr. Bora recognized his son Rahul and granddaughter Meera without any hesitation. Calm and cheerful.', author: 'Rahul' },
+  { id: 2, date: 'Yesterday', mood: 'happy', tag: 'exercise', text: 'Took morning medication on time after breakfast. Enjoyed evening walk.', author: 'Rahul' }
+];
+
+try {
+  const savedNotes = localStorage.getItem('saathi_notes');
+  if (savedNotes) notes = JSON.parse(savedNotes);
+} catch (_) {}
+
 // ── Local Storage Helper ──────────────────────────────
 const STORAGE_KEY = 'saathi_caretaker_portal_v1';
 
@@ -296,12 +337,15 @@ function saveState() {
   try {
     const state = {
       patient: DEMO.patient,
+      passport: DEMO.passport,
       todayPlan: DEMO.todayPlan,
       routines: DEMO.routines,
       recentActivity: DEMO.recentActivity,
       notes,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem('saathi_demo_state', JSON.stringify(DEMO));
+    localStorage.setItem('saathi_notes', JSON.stringify(notes));
   } catch (e) {
     console.warn('Could not save portal state:', e);
   }
@@ -311,6 +355,7 @@ function saveState() {
 const savedState = loadState();
 if (savedState) {
   if (savedState.patient) DEMO.patient = { ...DEMO.patient, ...savedState.patient };
+  if (savedState.passport) DEMO.passport = savedState.passport;
   if (savedState.todayPlan) DEMO.todayPlan = savedState.todayPlan;
   if (savedState.routines) DEMO.routines = savedState.routines;
   if (savedState.recentActivity) DEMO.recentActivity = savedState.recentActivity;
@@ -319,20 +364,29 @@ if (savedState) {
 
 // ── Init ──────────────────────────────────────────────
 function init() {
-  applyPatientName();
-  renderStabilityChart();
-  renderTodayList();
-  renderRecentActivity();
-  renderRecordsTable();
-  renderRoutineList();
-  renderAdherenceGrid();
-  renderHintSparkline();
-  initNotes();
-  initReport();
-  initSettings();
-  initSyncModal();
-  initAiCheckupModal();
-  initFirebase();
+  const safeRun = (fn, name) => {
+    try {
+      fn();
+    } catch (err) {
+      console.error(`Error in ${name}:`, err);
+    }
+  };
+  safeRun(applyPatientName, 'applyPatientName');
+  safeRun(renderStabilityChart, 'renderStabilityChart');
+  safeRun(renderTodayList, 'renderTodayList');
+  safeRun(renderRecentActivity, 'renderRecentActivity');
+  safeRun(renderRecordsTable, 'renderRecordsTable');
+  safeRun(renderRoutineList, 'renderRoutineList');
+  safeRun(renderAdherenceGrid, 'renderAdherenceGrid');
+  safeRun(renderHintSparkline, 'renderHintSparkline');
+  safeRun(initPassportPage, 'initPassportPage');
+  safeRun(renderPassportPage, 'renderPassportPage');
+  safeRun(initNotes, 'initNotes');
+  safeRun(initReport, 'initReport');
+  safeRun(initSettings, 'initSettings');
+  safeRun(initSyncModal, 'initSyncModal');
+  safeRun(initAiCheckupModal, 'initAiCheckupModal');
+  safeRun(initFirebase, 'initFirebase');
 }
 
 function applyPatientName() {
@@ -400,29 +454,451 @@ window.toggleRoutine = function (index) {
 };
 
 // ══════════════════════════════════════════
+// MEMORY PASSPORT (Live Interactive & Sync)
+// ══════════════════════════════════════════
+function initPassportPage() {
+  const btnEditProfile = document.getElementById('btnEditPassportProfile');
+  if (btnEditProfile) btnEditProfile.addEventListener('click', openEditProfileModal);
+
+  const btnAddFamily = document.getElementById('btnAddFamilyMember');
+  if (btnAddFamily) btnAddFamily.addEventListener('click', () => openFamilyModal(null));
+
+  const btnAddRoutine = document.getElementById('btnAddRoutineItem');
+  if (btnAddRoutine) btnAddRoutine.addEventListener('click', () => openRoutineModal(null));
+
+  const btnAddPlace = document.getElementById('btnAddPlaceItem');
+  if (btnAddPlace) btnAddPlace.addEventListener('click', () => openPlaceModal(null));
+
+  // Profile modal
+  document.getElementById('closeProfileModal')?.addEventListener('click', () => closePassportModal('passportProfileModal'));
+  document.getElementById('cancelProfileBtn')?.addEventListener('click', () => closePassportModal('passportProfileModal'));
+  document.getElementById('saveProfileBtn')?.addEventListener('click', handleSaveProfile);
+
+  // Family modal
+  document.getElementById('closeFamilyModal')?.addEventListener('click', () => closePassportModal('passportFamilyModal'));
+  document.getElementById('cancelFamilyBtn')?.addEventListener('click', () => closePassportModal('passportFamilyModal'));
+  document.getElementById('saveFamilyBtn')?.addEventListener('click', handleSaveFamily);
+
+  // Routine modal
+  document.getElementById('closeRoutineModal')?.addEventListener('click', () => closePassportModal('passportRoutineModal'));
+  document.getElementById('cancelRoutineBtn')?.addEventListener('click', () => closePassportModal('passportRoutineModal'));
+  document.getElementById('saveRoutineBtn')?.addEventListener('click', handleSaveRoutine);
+
+  // Place modal
+  document.getElementById('closePlaceModal')?.addEventListener('click', () => closePassportModal('passportPlaceModal'));
+  document.getElementById('cancelPlaceBtn')?.addEventListener('click', () => closePassportModal('passportPlaceModal'));
+  document.getElementById('savePlaceBtn')?.addEventListener('click', handleSavePlace);
+
+  // Close modals on overlay backdrop click
+  ['passportProfileModal', 'passportFamilyModal', 'passportRoutineModal', 'passportPlaceModal'].forEach(id => {
+    const m = document.getElementById(id);
+    if (m) {
+      m.addEventListener('click', e => {
+        if (e.target === m) closePassportModal(id);
+      });
+    }
+  });
+}
+
+function openPassportModal(id) {
+  document.getElementById(id)?.classList.add('show');
+}
+function closePassportModal(id) {
+  document.getElementById(id)?.classList.remove('show');
+}
+
+function updatePassportSyncBadge(isLive, errMsg) {
+  const badge = document.getElementById('passportLiveBadge');
+  if (!badge) return;
+  if (isLive) {
+    badge.className = 'passport-badge-live';
+    badge.innerHTML = '<span class="pulse-dot"></span> Live Linked (Firestore)';
+  } else {
+    badge.className = 'passport-badge-live offline';
+    badge.innerHTML = `⚠️ Sync: ${errMsg || 'Offline'}`;
+  }
+}
+
+function renderPassportPage() {
+  if (!DEMO.passport) return;
+
+  // 1. Profile card
+  const avatarEl = document.getElementById('passportAvatar');
+  const nameEl = document.getElementById('passportProfileName');
+  const metaEl = document.getElementById('passportProfileMeta');
+  const favEl = document.getElementById('passportFavActivity');
+
+  const pName = DEMO.passport.name || DEMO.patient.name || 'Mr. Bora';
+  const pAge = DEMO.passport.age || DEMO.patient.age || 72;
+  const pRegion = DEMO.passport.region || DEMO.patient.region || 'Assam, North-East India';
+
+  if (avatarEl) avatarEl.textContent = pName.charAt(0).toUpperCase() || 'P';
+  if (nameEl) nameEl.textContent = pName;
+  if (metaEl) metaEl.textContent = `Age ${pAge} · ${pRegion}`;
+
+  const actEntry = (DEMO.passport.entries || []).find(e => e.kind === 'activity');
+  const favActivity = actEntry ? (actEntry.values?.name || actEntry.name || '🌱 Gardening') : '🌱 Gardening';
+  if (favEl) favEl.textContent = favActivity;
+
+  // 2. Family list
+  const familyListEl = document.getElementById('passportFamilyList');
+  if (familyListEl) {
+    const familyEntries = (DEMO.passport.entries || []).filter(e => e.kind === 'family');
+    if (familyEntries.length === 0) {
+      familyListEl.innerHTML = '<li class="passport-item" style="color:var(--text-muted);font-size:13px;">No family members added yet. Tap "+ Add Member" to add one.</li>';
+    } else {
+      familyListEl.innerHTML = familyEntries.map(entry => {
+        const v = entry.values || {};
+        const name = v.name || entry.name || 'Relative';
+        const rel = v.relationship || 'Family';
+        const visits = v.visits ? ` · ${v.visits}` : '';
+        const act = v.sharedActivity ? ` · ${v.sharedActivity}` : '';
+        const color = v.color || (name.startsWith('R') ? 'teal' : name.startsWith('A') ? 'amber' : 'rose');
+        const initial = name.charAt(0).toUpperCase();
+
+        return `
+          <li class="passport-item" data-id="${entry.id}">
+            <div class="passport-avatar ${color}">${initial}</div>
+            <div style="flex:1;">
+              <span class="p-name">${name}</span>
+              <span class="p-rel">${rel}${visits}${act}</span>
+            </div>
+            <div class="passport-item-actions">
+              <button class="btn-icon-sm" title="Edit" onclick="openFamilyModal('${entry.id}')">✏️</button>
+              <button class="btn-icon-sm delete" title="Delete" onclick="deletePassportEntry('${entry.id}')">🗑️</button>
+            </div>
+          </li>
+        `;
+      }).join('');
+    }
+  }
+
+  // 3. Routine list
+  const routineListEl = document.getElementById('passportRoutineList');
+  if (routineListEl) {
+    const routineEntries = (DEMO.passport.entries || []).filter(e => e.kind === 'routine' || e.kind === 'medicine');
+    routineEntries.sort((a, b) => {
+      const ta = (a.values?.time || '00:00');
+      const tb = (b.values?.time || '00:00');
+      return ta.localeCompare(tb);
+    });
+
+    if (routineEntries.length === 0) {
+      routineListEl.innerHTML = '<li class="passport-item" style="color:var(--text-muted);font-size:13px;padding-left:12px;">No routines or medicines scheduled yet.</li>';
+    } else {
+      routineListEl.innerHTML = routineEntries.map(entry => {
+        const v = entry.values || {};
+        const time = v.time || '08:00';
+        const name = v.name || entry.name || 'Routine';
+        const isMed = entry.kind === 'medicine' || name.toLowerCase().includes('med') || (v.instructions && v.instructions.length > 0);
+        const sub = v.instructions ? `<small style="display:block;font-size:11px;color:var(--text-muted);">${v.instructions}</small>` : '';
+
+        return `
+          <li class="passport-item timeline-item" data-id="${entry.id}">
+            <span class="timeline-time">${time}</span>
+            <div class="timeline-dot ${isMed ? 'medicine' : ''}"></div>
+            <div style="flex:1;">
+              <span class="timeline-label">${isMed && !name.includes('💊') ? '💊 ' : ''}${name}</span>
+              ${sub}
+            </div>
+            <div class="passport-item-actions">
+              <button class="btn-icon-sm" title="Edit" onclick="openRoutineModal('${entry.id}')">✏️</button>
+              <button class="btn-icon-sm delete" title="Delete" onclick="deletePassportEntry('${entry.id}')">🗑️</button>
+            </div>
+          </li>
+        `;
+      }).join('');
+    }
+  }
+
+  // 4. Important Places list
+  const placesListEl = document.getElementById('passportPlacesList');
+  if (placesListEl) {
+    const placeEntries = (DEMO.passport.entries || []).filter(e => e.kind === 'place');
+    if (placeEntries.length === 0) {
+      placesListEl.innerHTML = '<li class="passport-item" style="color:var(--text-muted);font-size:13px;">No familiar places saved yet.</li>';
+    } else {
+      placesListEl.innerHTML = placeEntries.map(entry => {
+        const v = entry.values || {};
+        const name = v.name || entry.name || 'Familiar Place';
+        const icon = v.icon || '🏠';
+
+        return `
+          <li class="passport-item" data-id="${entry.id}">
+            <div class="place-icon">${icon}</div>
+            <div style="flex:1;">
+              <span class="p-name">${name}</span>
+            </div>
+            <div class="passport-item-actions">
+              <button class="btn-icon-sm" title="Edit" onclick="openPlaceModal('${entry.id}')">✏️</button>
+              <button class="btn-icon-sm delete" title="Delete" onclick="deletePassportEntry('${entry.id}')">🗑️</button>
+            </div>
+          </li>
+        `;
+      }).join('');
+    }
+  }
+}
+
+function syncRoutinesFromPassport() {
+  if (!DEMO.passport || !DEMO.passport.entries) return;
+  const routineEntries = DEMO.passport.entries.filter(e => e.kind === 'routine' || e.kind === 'medicine');
+  if (routineEntries.length > 0) {
+    DEMO.todayPlan = routineEntries.map(e => {
+      const v = e.values || {};
+      const isMed = e.kind === 'medicine' || (v.name && v.name.toLowerCase().includes('med'));
+      return {
+        time: v.time || '08:00',
+        name: isMed && !v.name?.includes('💊') ? `💊 ${v.name}` : (v.name || 'Activity'),
+        done: false
+      };
+    });
+    renderTodayList();
+  }
+}
+
+function savePassportToFirestore() {
+  if (!db) {
+    console.warn('Firebase db not available, passport saved locally.');
+    return Promise.resolve();
+  }
+  DEMO.passport.revision = (DEMO.passport.revision || 1) + 1;
+  const passRef = db.collection('patients').doc(currentPatientUid).collection('passport').doc('current');
+  return passRef.set({
+    schemaVersion: 1,
+    name: DEMO.passport.name || 'Mr. Bora',
+    age: DEMO.passport.age || 72,
+    region: DEMO.passport.region || 'Assam, North-East India',
+    isDemo: false,
+    revision: DEMO.passport.revision,
+    entries: DEMO.passport.entries || []
+  }).then(() => {
+    console.log('✓ Passport successfully saved to Firestore:', currentPatientUid);
+    updatePassportSyncBadge(true);
+  }).catch(err => {
+    console.error('Error saving passport to Firestore:', err);
+    updatePassportSyncBadge(false, err.message);
+  });
+}
+
+function openEditProfileModal() {
+  const p = DEMO.passport || DEMO.patient;
+  document.getElementById('editProfileName').value = p.name || 'Mr. Bora';
+  document.getElementById('editProfileAge').value = p.age || 72;
+  document.getElementById('editProfileRegion').value = p.region || 'Assam, North-East India';
+  const act = (p.entries || []).find(e => e.kind === 'activity');
+  document.getElementById('editProfileActivity').value = act?.values?.name || act?.name || '🌱 Gardening';
+  openPassportModal('passportProfileModal');
+}
+
+function handleSaveProfile() {
+  const name = document.getElementById('editProfileName').value.trim();
+  const age = parseInt(document.getElementById('editProfileAge').value, 10) || 72;
+  const region = document.getElementById('editProfileRegion').value.trim();
+  const activity = document.getElementById('editProfileActivity').value.trim();
+
+  if (!name) return alert('Please enter patient name');
+
+  DEMO.passport.name = name;
+  DEMO.passport.age = age;
+  DEMO.passport.region = region;
+  DEMO.patient.name = name;
+  DEMO.patient.age = age;
+  DEMO.patient.region = region;
+
+  let actIndex = (DEMO.passport.entries || []).findIndex(e => e.kind === 'activity');
+  if (actIndex >= 0) {
+    if (!DEMO.passport.entries[actIndex].values) DEMO.passport.entries[actIndex].values = {};
+    DEMO.passport.entries[actIndex].values.name = activity;
+  } else {
+    DEMO.passport.entries.push({
+      id: `act_${Date.now()}`,
+      kind: 'activity',
+      values: { name: activity }
+    });
+  }
+
+  savePassportToFirestore();
+  applyPatientName();
+  renderPassportPage();
+  saveState();
+  closePassportModal('passportProfileModal');
+}
+
+window.openFamilyModal = function (entryId) {
+  document.getElementById('editFamilyId').value = entryId || '';
+  const title = document.getElementById('familyModalTitle');
+  if (entryId) {
+    if (title) title.textContent = '✏️ Edit Family Member';
+    const entry = DEMO.passport.entries.find(e => e.id === entryId);
+    if (entry) {
+      const v = entry.values || {};
+      document.getElementById('editFamilyName').value = v.name || entry.name || '';
+      document.getElementById('editFamilyRel').value = v.relationship || '';
+      document.getElementById('editFamilyVisits').value = v.visits || '';
+      document.getElementById('editFamilyActivity').value = v.sharedActivity || '';
+      document.getElementById('editFamilyColor').value = v.color || 'teal';
+    }
+  } else {
+    if (title) title.textContent = '➕ Add Family Member';
+    document.getElementById('editFamilyName').value = '';
+    document.getElementById('editFamilyRel').value = '';
+    document.getElementById('editFamilyVisits').value = '';
+    document.getElementById('editFamilyActivity').value = '';
+    document.getElementById('editFamilyColor').value = 'teal';
+  }
+  openPassportModal('passportFamilyModal');
+};
+
+function handleSaveFamily() {
+  const id = document.getElementById('editFamilyId').value.trim();
+  const name = document.getElementById('editFamilyName').value.trim();
+  const rel = document.getElementById('editFamilyRel').value.trim();
+  const visits = document.getElementById('editFamilyVisits').value.trim();
+  const activity = document.getElementById('editFamilyActivity').value.trim();
+  const color = document.getElementById('editFamilyColor').value;
+
+  if (!name) return alert('Please enter a name');
+
+  const values = { name, relationship: rel };
+  if (visits) values.visits = visits;
+  if (activity) values.sharedActivity = activity;
+  if (color) values.color = color;
+
+  if (id) {
+    const idx = DEMO.passport.entries.findIndex(e => e.id === id);
+    if (idx >= 0) {
+      DEMO.passport.entries[idx].values = values;
+    }
+  } else {
+    DEMO.passport.entries.push({
+      id: `fam_${Date.now()}`,
+      kind: 'family',
+      values
+    });
+  }
+
+  savePassportToFirestore();
+  renderPassportPage();
+  saveState();
+  closePassportModal('passportFamilyModal');
+}
+
+window.openRoutineModal = function (entryId) {
+  document.getElementById('editRoutineId').value = entryId || '';
+  const title = document.getElementById('routineModalTitle');
+  if (entryId) {
+    if (title) title.textContent = '✏️ Edit Schedule Item';
+    const entry = DEMO.passport.entries.find(e => e.id === entryId);
+    if (entry) {
+      const v = entry.values || {};
+      document.getElementById('editRoutineTime').value = v.time || '09:00';
+      document.getElementById('editRoutineName').value = v.name || entry.name || '';
+      document.getElementById('editRoutineKind').value = entry.kind === 'medicine' || (v.name && v.name.toLowerCase().includes('med')) ? 'medicine' : 'routine';
+      document.getElementById('editRoutineInstructions').value = v.instructions || '';
+    }
+  } else {
+    if (title) title.textContent = '➕ Add Schedule Item';
+    document.getElementById('editRoutineTime').value = '09:00';
+    document.getElementById('editRoutineName').value = '';
+    document.getElementById('editRoutineKind').value = 'routine';
+    document.getElementById('editRoutineInstructions').value = '';
+  }
+  openPassportModal('passportRoutineModal');
+};
+
+function handleSaveRoutine() {
+  const id = document.getElementById('editRoutineId').value.trim();
+  const time = document.getElementById('editRoutineTime').value.trim();
+  const name = document.getElementById('editRoutineName').value.trim();
+  const kind = document.getElementById('editRoutineKind').value;
+  const instructions = document.getElementById('editRoutineInstructions').value.trim();
+
+  if (!name) return alert('Please enter routine or medicine name');
+
+  const values = { name, time };
+  if (instructions) values.instructions = instructions;
+
+  if (id) {
+    const idx = DEMO.passport.entries.findIndex(e => e.id === id);
+    if (idx >= 0) {
+      DEMO.passport.entries[idx].kind = kind;
+      DEMO.passport.entries[idx].values = values;
+    }
+  } else {
+    DEMO.passport.entries.push({
+      id: `rout_${Date.now()}`,
+      kind: kind,
+      values
+    });
+  }
+
+  syncRoutinesFromPassport();
+  savePassportToFirestore();
+  renderPassportPage();
+  saveState();
+  closePassportModal('passportRoutineModal');
+}
+
+window.openPlaceModal = function (entryId) {
+  document.getElementById('editPlaceId').value = entryId || '';
+  const title = document.getElementById('placeModalTitle');
+  if (entryId) {
+    if (title) title.textContent = '✏️ Edit Familiar Place';
+    const entry = DEMO.passport.entries.find(e => e.id === entryId);
+    if (entry) {
+      const v = entry.values || {};
+      document.getElementById('editPlaceName').value = v.name || entry.name || '';
+      document.getElementById('editPlaceIcon').value = v.icon || '🏠';
+    }
+  } else {
+    if (title) title.textContent = '➕ Add Familiar Place';
+    document.getElementById('editPlaceName').value = '';
+    document.getElementById('editPlaceIcon').value = '🏠';
+  }
+  openPassportModal('passportPlaceModal');
+};
+
+function handleSavePlace() {
+  const id = document.getElementById('editPlaceId').value.trim();
+  const name = document.getElementById('editPlaceName').value.trim();
+  const icon = document.getElementById('editPlaceIcon').value;
+
+  if (!name) return alert('Please enter place name');
+
+  const values = { name, icon };
+
+  if (id) {
+    const idx = DEMO.passport.entries.findIndex(e => e.id === id);
+    if (idx >= 0) {
+      DEMO.passport.entries[idx].values = values;
+    }
+  } else {
+    DEMO.passport.entries.push({
+      id: `place_${Date.now()}`,
+      kind: 'place',
+      values
+    });
+  }
+
+  savePassportToFirestore();
+  renderPassportPage();
+  saveState();
+  closePassportModal('passportPlaceModal');
+}
+
+window.deletePassportEntry = function (entryId) {
+  if (!confirm('Are you sure you want to remove this item from Memory Passport?')) return;
+  DEMO.passport.entries = (DEMO.passport.entries || []).filter(e => e.id !== entryId);
+  syncRoutinesFromPassport();
+  savePassportToFirestore();
+  renderPassportPage();
+  saveState();
+};
+
+// ══════════════════════════════════════════
 // DAILY NOTES (Persistent)
 // ══════════════════════════════════════════
-const MOOD_EMOJI = { calm:'😌', happy:'😊', anxious:'😰', confused:'😕', tired:'😴', agitated:'😤' };
-
-let selectedMood = null;
-let selectedTag  = 'general';
-
-let notes = [
-  { id: 1, date: '10:30 AM, Today', mood: 'calm', tag: 'behaviour', text: 'Mr. Bora recognized his son Rahul and granddaughter Meera without any hesitation. Calm and cheerful.', author: 'Rahul' },
-  { id: 2, date: 'Yesterday', mood: 'happy', tag: 'exercise', text: 'Took morning medication on time after breakfast. Enjoyed evening walk.', author: 'Rahul' }
-];
-
-try {
-  const savedNotes = localStorage.getItem('saathi_notes');
-  if (savedNotes) notes = JSON.parse(savedNotes);
-} catch (_) {}
-
-function saveState() {
-  try {
-    localStorage.setItem('saathi_demo_state', JSON.stringify(DEMO));
-    localStorage.setItem('saathi_notes', JSON.stringify(notes));
-  } catch (_) {}
-}
 
 function renderReportNotes() {
   const reportNotesEl = document.getElementById('reportNotesList') || document.getElementById('reportNotesFeed');
@@ -919,15 +1395,29 @@ function attachFirestoreListeners(patientUid) {
     const unsubPassport = passportRef.onSnapshot(doc => {
       if (doc && doc.exists) {
         const data = doc.data();
-        if (data.name) DEMO.patient.name = data.name;
-        if (data.age) DEMO.patient.age = data.age;
-        if (data.region) DEMO.patient.region = data.region;
-        applyPatientName();
-        saveState();
-        updateFirebaseBadge(true, 'Firebase: hiasaathi (Live)');
+        if (data) {
+          DEMO.passport = {
+            ...DEMO.passport,
+            ...data,
+            entries: data.entries || DEMO.passport.entries || []
+          };
+          if (data.name) DEMO.patient.name = data.name;
+          if (data.age) DEMO.patient.age = data.age;
+          if (data.region) DEMO.patient.region = data.region;
+          syncRoutinesFromPassport();
+          applyPatientName();
+          renderPassportPage();
+          saveState();
+          updateFirebaseBadge(true, 'Firebase: hiasaathi (Live)');
+          updatePassportSyncBadge(true);
+        }
+      } else {
+        console.log('No passport in Firestore for', patientUid, '-> seeding default passport');
+        savePassportToFirestore();
       }
     }, err => {
       console.warn('Firestore passport listener:', err.message);
+      updatePassportSyncBadge(false, err.message);
     });
     activeUnsubscribers.push(unsubPassport);
   } catch (err) {
@@ -1001,18 +1491,12 @@ function seedFirestoreWithDemoData() {
   const passRef = db.collection('patients').doc(currentPatientUid).collection('passport').doc('current');
   batch.set(passRef, {
     schemaVersion: 1,
-    name: DEMO.patient.name || 'Mr. Bora',
-    age: DEMO.patient.age || 72,
-    region: DEMO.patient.region || 'Assam',
+    name: DEMO.passport.name || 'Mr. Bora',
+    age: DEMO.passport.age || 72,
+    region: DEMO.passport.region || 'Assam, North-East India',
     isDemo: false,
     revision: 1,
-    entries: [
-      { id: 'rahul_1', name: 'Rahul', kind: 'family', values: { relationship: 'Son' } },
-      { id: 'ananya_1', name: 'Ananya', kind: 'family', values: { relationship: 'Daughter-in-law' } },
-      { id: 'meera_1', name: 'Meera', kind: 'family', values: { relationship: 'Granddaughter' } },
-      { id: 'med_1', name: 'Donepezil', kind: 'routine', values: { time: '09:00', dose: '5mg' } },
-      { id: 'med_2', name: 'Memantine', kind: 'routine', values: { time: '20:00', dose: '10mg' } }
-    ]
+    entries: DEMO.passport.entries || []
   });
 
   // 2. Records
