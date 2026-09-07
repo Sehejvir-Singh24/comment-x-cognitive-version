@@ -17,6 +17,7 @@ import 'package:flutter/services.dart';
 import '../ai/saathi_companion_service.dart';
 import '../l10n/app_localizations.dart';
 import '../memory_passport/passport.dart';
+import 'nebula_animation.dart';
 
 /// The conversational companion screen for "Talk to Saathi".
 /// Designed specifically for elderly accessibility: large text, high contrast,
@@ -566,34 +567,13 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
                     : 'Enable Gemini — caregiver settings',
               ),
             ),
-            Text(
-              _speaking
-                  ? 'Saathi is speaking'
-                  : _listening
-                  ? 'Listening — speak naturally'
-                  : _voiceBusy
-                  ? 'Getting ready…'
-                  : 'Talk at your own pace',
-              style: const TextStyle(fontSize: 16),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: FilledButton.icon(
-                onPressed: _voiceConversation
-                    ? _toggleVoice
-                    : _loading
-                    ? null
-                    : _toggleVoice,
-                icon: Icon(_listening ? Icons.stop : Icons.mic),
-                label: Text(
-                  _voiceConversation
-                      ? 'End voice conversation'
-                      : 'Start voice conversation',
-                ),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(64),
-                ),
-              ),
+            NebulaVisualizer(
+              isListening: _listening,
+              isSpeaking: _speaking,
+              isLoading: _loading,
+              isVoiceConversation: _voiceConversation,
+              voiceBusy: _voiceBusy,
+              onToggleVoice: _toggleVoice,
             ),
             const Padding(
               padding: EdgeInsets.fromLTRB(24, 4, 24, 0),
