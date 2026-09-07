@@ -237,7 +237,7 @@ class CompanionRouter {
       final result = await cloud(
         text,
         contextFor(text, passport),
-      ).timeout(const Duration(seconds: 30));
+      ).timeout(const Duration(seconds: 60));
       if (!consent || generation != _generation) return fallback;
       if (result.trim().isEmpty || medical(result)) {
         throw StateError('unsuitable response');
