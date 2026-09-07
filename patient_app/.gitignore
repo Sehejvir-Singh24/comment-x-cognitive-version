@@ -48,3 +48,4 @@ app.*.map.json
 .widget_preview/
 /assets/models/
 /cloud-config.local.json
+/android/app/google-services.json

@@ -71,7 +71,7 @@ void main() {
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
     await tester.pumpWidget(const CompanionApp());
     await tester.pumpAndSettle();
-    expect(find.text('Talk to Saathi'), findsOneWidget);
+    expect(find.text('Speak to Saathi'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Choose home screen'), 400);
     await tester.tap(find.text('Choose home screen'));
     await tester.pumpAndSettle();
@@ -84,8 +84,7 @@ void main() {
   ) async {
     await tester.pumpWidget(const CompanionApp());
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Phone apps'), 400);
-    await tester.tap(find.text('Phone apps'));
+    await tester.tap(find.text('Choose an app'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Clock'));
     await tester.pumpAndSettle();

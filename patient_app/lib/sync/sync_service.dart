@@ -33,6 +33,9 @@ class SyncService {
   static Future<void> setEnabled(bool value) async {
     if (value) {
       await CloudSetup.ensureReady();
+      if (FirebaseAuth.instance.currentUser == null) {
+        await FirebaseAuth.instance.signInAnonymously();
+      }
       await AppDatabase.use(
         null,
         (db) => db.transaction(() async {

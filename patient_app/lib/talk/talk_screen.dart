@@ -2,6 +2,7 @@ import '../sync/sync_service.dart';
 
 import 'dart:async';
 
+import '../voice/device_command.dart';
 import '../voice/speech_service.dart';
 import '../family/family_screen.dart';
 import '../videos/watch_screen.dart';
@@ -21,10 +22,18 @@ import '../memory_passport/passport.dart';
 /// Designed specifically for elderly accessibility: large text, high contrast,
 /// easy quick-prompt chips, and a warm, patient voice.
 class TalkScreen extends StatefulWidget {
-  const TalkScreen({super.key, required this.passport, this.service});
+  const TalkScreen({
+    super.key,
+    required this.passport,
+    this.service,
+    this.speech,
+    this.startListening = false,
+  });
 
   final Passport passport;
   final SaathiCompanionService? service;
+  final SpeechService? speech;
+  final bool startListening;
 
   @override
   State<TalkScreen> createState() => _TalkScreenState();
@@ -43,11 +52,15 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
   bool _listening = false;
   bool _voiceBusy = false;
   bool _consent = false;
+  bool _voiceConversation = false;
+  bool _speaking = false;
+  int _voiceEpoch = 0;
 
   @override
   void initState() {
     super.initState();
     _service = widget.service ?? SaathiCompanionService();
+    _speech = widget.speech;
     _service.initChat(widget.passport);
     WidgetsBinding.instance.addObserver(this);
     if (widget.service == null) {
@@ -68,13 +81,20 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
         timestamp: DateTime.now(),
       ),
     );
+    if (widget.startListening) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _toggleVoice());
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _transcripts?.cancel();
-    _speech?.dispose();
+    _voiceConversation = false;
+    _voiceEpoch++;
+    _speech?.cancelListening();
+    _speech?.stopSpeaking();
+    if (widget.speech == null) _speech?.dispose();
     _controller.dispose();
     _inputFocus.dispose();
     _scrollController.dispose();
@@ -84,6 +104,7 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
   Future<void> _sendMessage(String text) async {
     final cleanText = text.trim();
     if (cleanText.isEmpty || _loading) return;
+    final requestVoiceEpoch = _voiceEpoch;
 
     _controller.clear();
     setState(() {
@@ -98,13 +119,9 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
     });
     _scrollToBottom();
 
-    final reply = await _service.sendMessage(cleanText);
-    if (mounted && _foreground && _speech != null) {
-      _speech!.speak(reply).catchError((Object _) {
-        if (mounted) _notice('Voice is unavailable. You can read the reply.');
-      });
-    }
-
+    final deviceReply = await _runDeviceCommand(cleanText);
+    if (!mounted) return;
+    final reply = deviceReply ?? await _service.sendMessage(cleanText);
     if (mounted) {
       setState(() {
         _messages.add(
@@ -117,7 +134,74 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
         _loading = false;
       });
       _scrollToBottom();
-      _navigate(_service.lastAction);
+      final action = deviceReply == null ? _service.lastAction : null;
+      if (action != null) {
+        _endVoice();
+        await _navigate(action);
+      } else if (_foreground &&
+          requestVoiceEpoch == _voiceEpoch &&
+          ModalRoute.of(context)?.isCurrent == true &&
+          _speech != null) {
+        final epoch = _voiceEpoch;
+        setState(() => _speaking = true);
+        try {
+          await _speech!.speak(reply);
+        } catch (_) {
+          _endVoice();
+          if (mounted) {
+            _notice('I could not read that aloud. Your reply is on screen.');
+          }
+        } finally {
+          if (mounted) setState(() => _speaking = false);
+        }
+        if (mounted &&
+            _foreground &&
+            _voiceConversation &&
+            epoch == _voiceEpoch &&
+            ModalRoute.of(context)?.isCurrent == true) {
+          unawaited(_listenForTurn());
+        }
+      }
+    }
+  }
+
+  /// Executes recognised launcher commands locally, before a message can be
+  /// sent to Gemini. This keeps phone controls private and predictable.
+  Future<String?> _runDeviceCommand(String text) async {
+    final commandText = text.trim().toLowerCase();
+    if (CompanionRouter.local(commandText, widget.passport).action != null) {
+      return null;
+    }
+    final bridge = LauncherBridge();
+    final basic = DeviceCommandParser.parse(commandText, const []);
+    if (basic?.type == DeviceCommandType.home) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      return 'Going home.';
+    }
+    if (basic?.type == DeviceCommandType.phone) {
+      try {
+        await bridge.openDialer();
+        return 'Opening Phone.';
+      } catch (_) {
+        return 'I could not open Phone.';
+      }
+    }
+
+    if (!RegExp(r'^(open|start|launch)\s+').hasMatch(commandText)) {
+      return null;
+    }
+    try {
+      final apps = await bridge.apps();
+      final command = DeviceCommandParser.parse(commandText, apps);
+      if (command?.type == DeviceCommandType.app) {
+        await bridge.openApp(command!.app!.packageName);
+        return 'Opening ${command.app!.label}.';
+      }
+      // Keep an unrecognised device command local as well. Gemini should not
+      // interpret commands aimed at the phone.
+      return 'I could not find that app on this phone.';
+    } catch (_) {
+      return 'I cannot check your phone apps right now.';
     }
   }
 
@@ -125,9 +209,7 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
     if (!_foreground) {
-      _speech?.cancelListening();
-      _speech?.stopSpeaking();
-      if (mounted) setState(() => _listening = false);
+      _endVoice();
     }
   }
 
@@ -140,38 +222,72 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _toggleVoice() async {
-    if (_voiceBusy || _loading) return;
+    if (_voiceConversation) {
+      _endVoice();
+      return;
+    }
+    if (_loading) return;
+    _voiceConversation = true;
+    _voiceEpoch++;
+    await _listenForTurn();
+  }
+
+  void _endVoice() {
+    _voiceConversation = false;
+    _voiceEpoch++;
+    _speech?.cancelListening();
+    _speech?.stopSpeaking();
+    if (mounted) {
+      setState(() {
+        _listening = false;
+        _speaking = false;
+        _voiceBusy = false;
+      });
+    }
+  }
+
+  Future<void> _listenForTurn() async {
+    if (!mounted ||
+        !_foreground ||
+        !_voiceConversation ||
+        _loading ||
+        ModalRoute.of(context)?.isCurrent != true) {
+      return;
+    }
+    final epoch = _voiceEpoch;
     setState(() => _voiceBusy = true);
     try {
-      _speech ??= SpeechService(
-        onListeningExpired: () {
-          if (mounted) {
-            setState(() => _listening = false);
-            _notice(
-              'Microphone stopped after 30 seconds. You can send the text below.',
-            );
-          }
-        },
-      );
+      _speech ??= SpeechService();
       _transcripts ??= _speech!.transcripts.stream.listen((text) {
         if (mounted) setState(() => _controller.text = text);
       });
-      if (_listening) {
-        final text = await _speech!.stopListening();
-        if (!mounted) return;
-        setState(() => _listening = false);
-        if (text.trim().isEmpty) {
-          _notice('I did not hear that. Please try again or type below.');
-        } else {
-          await _sendMessage(text);
-        }
+      await _speech!.startListening();
+      if (!mounted || epoch != _voiceEpoch) {
+        await _speech!.cancelListening();
+        return;
+      }
+      setState(() {
+        _listening = true;
+        _voiceBusy = false;
+      });
+      final text = await _speech!.finalTranscript();
+      if (!mounted || !_foreground || epoch != _voiceEpoch) return;
+      setState(() => _listening = false);
+      if (text.trim().isEmpty) {
+        _endVoice();
+        _notice(
+          'Conversation paused. Tap Start voice conversation when you’re ready.',
+        );
+      } else if (RegExp(
+        r'^(stop|stop listening|stop talking|end conversation)[.!]?$',
+      ).hasMatch(text.trim().toLowerCase())) {
+        _endVoice();
       } else {
-        await _speech!.startListening();
-        if (mounted) setState(() => _listening = true);
+        await _sendMessage(text);
       }
     } catch (_) {
       if (mounted) {
-        setState(() => _listening = false);
+        _endVoice();
         _notice('Voice is unavailable. Please use the buttons or keyboard.');
       }
     } finally {
@@ -225,7 +341,7 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Keep offline'),
+            child: const Text('Do not enable'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
@@ -330,7 +446,7 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
       appBar: AppBar(
         actions: [
           IconButton(
-            onPressed: () => _speech?.stopSpeaking(),
+            onPressed: _endVoice,
             tooltip: 'Stop speaking',
             icon: const Icon(Icons.volume_off),
           ),
@@ -363,31 +479,43 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
               valueListenable: _service.router.mode,
               builder: (_, mode, child) => Text(
                 mode == CompanionMode.checking
-                    ? 'Checking connection...'
+                    ? 'Saathi is thinking…'
                     : mode == CompanionMode.online
-                    ? 'Online Saathi'
-                    : 'Offline Saathi',
+                    ? 'Gemini Saathi'
+                    : 'Saathi',
               ),
             ),
             TextButton(
               onPressed: _onlineSettings,
               child: Text(
                 _consent
-                    ? 'Online replies allowed — change'
-                    : 'Online replies off — caregiver settings',
+                    ? 'Gemini replies allowed — change'
+                    : 'Enable Gemini — caregiver settings',
               ),
+            ),
+            Text(
+              _speaking
+                  ? 'Saathi is speaking'
+                  : _listening
+                  ? 'Listening — speak naturally'
+                  : _voiceBusy
+                  ? 'Getting ready…'
+                  : 'Talk at your own pace',
+              style: const TextStyle(fontSize: 16),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: FilledButton.icon(
-                onPressed: _voiceBusy || _loading ? null : _toggleVoice,
+                onPressed: _voiceConversation
+                    ? _toggleVoice
+                    : _loading
+                    ? null
+                    : _toggleVoice,
                 icon: Icon(_listening ? Icons.stop : Icons.mic),
                 label: Text(
-                  _voiceBusy
-                      ? 'Preparing voice...'
-                      : _listening
-                      ? 'Finish speaking'
-                      : 'Google speech (prefer offline)',
+                  _voiceConversation
+                      ? 'End voice conversation'
+                      : 'Start voice conversation',
                 ),
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(64),
@@ -397,7 +525,7 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
             const Padding(
               padding: EdgeInsets.fromLTRB(24, 4, 24, 0),
               child: Text(
-                'Uses Google speech. It prefers the phone’s offline English pack.',
+                'Gemini answers questions. Google speech is used for voice input.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12),
               ),

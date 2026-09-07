@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'sync/sync_service.dart';
 
 import 'package:flutter/material.dart';
 
 import 'cognition/record_store.dart';
+import 'caregiver/caregiver_dashboard_screen.dart';
 import 'family/family_screen.dart';
 import 'videos/watch_screen.dart';
 import 'l10n/app_localizations.dart';
@@ -14,6 +17,7 @@ import 'medicine/medicine_screen.dart';
 import 'medicine/reminder_bridge.dart';
 import 'my_day/my_day_screen.dart';
 import 'talk/talk_screen.dart';
+import 'voice/speech_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -55,12 +59,22 @@ class _LauncherHomeState extends State<LauncherHome>
   final bridge = LauncherBridge();
   final passportStore = PassportStore();
   final recordStore = RecordStore();
+  late final SpeechService _voice;
+  Timer? _checkInTimer;
   Passport? passport;
   bool defaultHome = false;
   bool busy = false;
+  bool _foreground = true;
+  String? _checkInQuestion;
+  String? _welcomeMessage;
+  int _checkInIndex = 0;
+  bool _greeted = false;
   @override
   void initState() {
     super.initState();
+    _voice = SpeechService();
+    unawaited(_voice.initialize().catchError((Object _) {}));
+    _startCheckIns();
     WidgetsBinding.instance.addObserver(this);
     LauncherBridge.channel.setMethodCallHandler((call) async {
       if (call.method == 'homePressed' && mounted) {
@@ -80,7 +94,10 @@ class _LauncherHomeState extends State<LauncherHome>
     try {
       final value = await passportStore.load();
       await ReminderBridge.schedule(value);
-      if (mounted) setState(() => passport = value);
+      if (mounted) {
+        setState(() => passport = value);
+        _welcome(value);
+      }
     } catch (_) {
       // Launcher remains usable; Memory Passport displays storage errors.
     }
@@ -90,12 +107,89 @@ class _LauncherHomeState extends State<LauncherHome>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     LauncherBridge.channel.setMethodCallHandler(null);
+    _checkInTimer?.cancel();
+    _voice.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) refresh();
+    _foreground = state == AppLifecycleState.resumed;
+    if (_foreground) {
+      refresh();
+      _startCheckIns();
+    } else {
+      _checkInTimer?.cancel();
+    }
+  }
+
+  void _startCheckIns() {
+    _checkInTimer?.cancel();
+    _checkInTimer = Timer.periodic(
+      const Duration(minutes: 2),
+      (_) => _askCheckInQuestion(),
+    );
+  }
+
+  Future<void> _askCheckInQuestion() async {
+    if (!mounted || !_foreground || ModalRoute.of(context)?.isCurrent != true) {
+      return;
+    }
+    const questions = [
+      'Would you like to do a short memory question?',
+      'What would you like to do next?',
+      'Would you like to talk about family or a favourite memory?',
+    ];
+    final question = questions[_checkInIndex++ % questions.length];
+    setState(() => _checkInQuestion = question);
+    try {
+      await _voice.speak('Saathi check-in. $question');
+    } catch (_) {
+      // The written prompt remains available if Android voice is unavailable.
+    }
+  }
+
+  Future<void> _openTalk() => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) =>
+          TalkScreen(passport: passport!, speech: _voice, startListening: true),
+    ),
+  );
+
+  String _passportQuestion(Passport value) {
+    final routine = value.entries.where(
+      (entry) => entry.kind == MemoryKind.routine,
+    );
+    if (routine.isNotEmpty) {
+      return 'I remember ${routine.first.name}. Would you like to talk about it?';
+    }
+    final family = value.entries.where(
+      (entry) => entry.kind == MemoryKind.family,
+    );
+    if (family.isNotEmpty) {
+      return 'Would you like to tell me about ${family.first.name}?';
+    }
+    final place = value.entries.where(
+      (entry) => entry.kind == MemoryKind.place,
+    );
+    if (place.isNotEmpty) {
+      return 'Would you like to talk about ${place.first.name}?';
+    }
+    return 'Would you like to add a favourite memory to your Memory Passport?';
+  }
+
+  void _welcome(Passport value) {
+    if (_greeted) return;
+    _greeted = true;
+    final greeting = DateTime.now().hour < 12
+        ? 'Good morning'
+        : DateTime.now().hour < 17
+        ? 'Good afternoon'
+        : 'Good evening';
+    final message =
+        '$greeting, ${value.name}. How are you feeling today? ${_passportQuestion(value)} What would you like to do? You can tell me which app to open.';
+    setState(() => _welcomeMessage = message);
+    _voice.speak(message).catchError((Object _) {});
   }
 
   Future<void> refresh() async {
@@ -193,43 +287,102 @@ class _LauncherHomeState extends State<LauncherHome>
             child: ListView(
               padding: const EdgeInsets.all(24),
               children: [
-                Text(
-                  s.appTitle,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF153F34),
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  child: Column(
+                    children: [
+                      const CircleAvatar(
+                        radius: 42,
+                        backgroundColor: Color(0xFFE8F0EC),
+                        child: Icon(
+                          Icons.graphic_eq_rounded,
+                          color: Color(0xFF153F34),
+                          size: 52,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Saathi is here with you',
+                        style: TextStyle(
+                          fontSize: 27,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        _welcomeMessage ??
+                            '$greeting, ${passport?.name ?? s.demoName}.',
+                        style: const TextStyle(
+                          fontSize: 19,
+                          height: 1.35,
+                          color: Color(0xFFF7F5EF),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  '$greeting,\n${passport?.name ?? s.demoName}',
-                  style: const TextStyle(
-                    fontSize: 34,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF153F34),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  (passport?.isDemo ?? true) ? s.demoPassport : s.savedPassport,
-                ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
                 FilledButton.icon(
                   style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(96),
+                    minimumSize: const Size.fromHeight(108),
                     textStyle: const TextStyle(fontSize: 26),
                   ),
-                  onPressed: passport == null
-                      ? null
-                      : () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => TalkScreen(passport: passport!),
-                          ),
-                        ),
-                  icon: const Icon(Icons.mic_none, size: 36),
-                  label: Text(s.talk),
+                  onPressed: passport == null ? null : _openTalk,
+                  icon: const Icon(Icons.mic, size: 40),
+                  label: const Text('Speak to Saathi'),
                 ),
                 const SizedBox(height: 16),
+                Text(
+                  'Say “Open WhatsApp”, “Open Phone”, or ask Saathi a question.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 17, color: Colors.grey[800]),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(72),
+                    textStyle: const TextStyle(fontSize: 22),
+                  ),
+                  onPressed: busy ? null : () => perform(showApps),
+                  icon: const Icon(Icons.apps, size: 30),
+                  label: const Text('Choose an app'),
+                ),
+                const SizedBox(height: 24),
+                if (_checkInQuestion != null)
+                  Card(
+                    color: const Color(0xFFE8F0EC),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Saathi check-in',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(_checkInQuestion!),
+                          TextButton.icon(
+                            onPressed: passport == null ? null : _openTalk,
+                            icon: const Icon(Icons.mic),
+                            label: const Text('Answer Saathi'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                const Text(
+                  'More ways Saathi can help',
+                  style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
                 ElevatedButton.icon(
                   onPressed: passport == null
                       ? null
@@ -340,18 +493,32 @@ class _LauncherHomeState extends State<LauncherHome>
                     label: Text(s.myDay),
                   ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(64),
+                    ),
+                    onPressed: passport == null
+                        ? null
+                        : () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => CaregiverDashboardScreen(
+                                passport: passport!,
+                                recordStore: recordStore,
+                              ),
+                            ),
+                          ),
+                    icon: const Icon(Icons.insights_outlined, size: 28),
+                    label: const Text('Caregiver dashboard'),
+                  ),
+                ),
                 ElevatedButton.icon(
                   onPressed: busy ? null : () => perform(bridge.openDialer),
                   icon: const Icon(Icons.call_outlined),
                   label: Text(s.phone),
                 ),
                 const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  onPressed: busy ? null : () => perform(showApps),
-                  icon: const Icon(Icons.apps),
-                  label: Text(s.phoneApps),
-                ),
-                const SizedBox(height: 24),
                 Text(defaultHome ? s.homeEnabled : s.homeNotEnabled),
                 const SizedBox(height: 8),
                 OutlinedButton(

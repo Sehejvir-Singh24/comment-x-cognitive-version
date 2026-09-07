@@ -11,7 +11,10 @@ import android.provider.Settings
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.os.Bundle
+import java.util.Locale
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -20,6 +23,30 @@ class MainActivity : FlutterActivity() {
     private var launcherChannel: MethodChannel? = null
     private var speechChannel: MethodChannel? = null
     private var speechRecognizer: SpeechRecognizer? = null
+    private var textToSpeech: TextToSpeech? = null
+    private var textToSpeechReady = false
+    private var pendingSpeech: MethodChannel.Result? = null
+    private var utteranceNumber = 0
+    private var activeUtterance = ""
+
+    private fun finishSpeech(id: String, failed: Boolean = false) {
+        runOnUiThread {
+            if (id == activeUtterance) {
+                val pending = pendingSpeech
+                pendingSpeech = null
+                if (failed) pending?.error("TTS_FAILED", "Speech could not complete", null)
+                else pending?.success(null)
+            }
+        }
+    }
+
+    private fun stopVoice() {
+        activeUtterance = ""
+        val pending = pendingSpeech
+        pendingSpeech = null
+        textToSpeech?.stop()
+        pending?.success(null)
+    }
 
     private val reminderPreferences by lazy { getSharedPreferences("medicine_reminders", MODE_PRIVATE) }
 
@@ -104,6 +131,11 @@ class MainActivity : FlutterActivity() {
                 }
                 "stop" -> { speechRecognizer?.stopListening(); result.success(null) }
                 "cancel" -> { destroySpeechRecognizer(); result.success(null) }
+                "speak" -> speak(call.argument<String>("text").orEmpty(), result)
+                "stopSpeaking" -> {
+                    stopVoice()
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -191,8 +223,41 @@ class MainActivity : FlutterActivity() {
         speechRecognizer = null
     }
 
+    private fun speak(text: String, result: MethodChannel.Result) {
+        if (text.isBlank()) {
+            result.success(null)
+            return
+        }
+        val voice = textToSpeech
+        stopVoice()
+        val id = "saathi-${++utteranceNumber}"
+        activeUtterance = id
+        pendingSpeech = result
+        if (voice != null && textToSpeechReady) {
+            if (voice.speak(text, TextToSpeech.QUEUE_FLUSH, null, id) == TextToSpeech.ERROR) finishSpeech(id, true)
+            return
+        }
+        textToSpeech = TextToSpeech(applicationContext) { status ->
+            textToSpeechReady = status == TextToSpeech.SUCCESS
+            if (textToSpeechReady) {
+                textToSpeech?.language = Locale.UK
+                textToSpeech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) = Unit
+                    override fun onDone(utteranceId: String?) { finishSpeech(utteranceId.orEmpty()) }
+                    override fun onError(utteranceId: String?) { finishSpeech(utteranceId.orEmpty(), true) }
+                })
+                if (activeUtterance == id && textToSpeech?.speak(text, TextToSpeech.QUEUE_FLUSH, null, id) == TextToSpeech.ERROR) finishSpeech(id, true)
+            } else {
+                finishSpeech(id, true)
+            }
+        }
+    }
+
     override fun onDestroy() {
         destroySpeechRecognizer()
+        stopVoice()
+        textToSpeech?.shutdown()
+        textToSpeech = null
         super.onDestroy()
     }
 }
