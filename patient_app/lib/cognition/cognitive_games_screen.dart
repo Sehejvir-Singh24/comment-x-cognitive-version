@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -18,6 +19,7 @@ class CognitiveGamesScreen extends StatefulWidget {
     this.generator = const CognitiveGameGenerator(),
     this.initialKind,
     this.speechService,
+    this.onCompleted,
   });
 
   final Passport passport;
@@ -26,6 +28,7 @@ class CognitiveGamesScreen extends StatefulWidget {
   final CognitiveGameGenerator generator;
   final RecordKind? initialKind;
   final SpeechService? speechService;
+  final FutureOr<void> Function(int correct, int total)? onCompleted;
 
   @override
   State<CognitiveGamesScreen> createState() => _CognitiveGamesScreenState();
@@ -174,8 +177,16 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
       setState(() {
         _gameCompleted = true;
       });
+      final callback = widget.onCompleted;
+      if (callback != null) {
+        unawaited(
+          Future<void>.sync(() => callback(_correctCount, _questions.length)),
+        );
+      }
       final name = widget.passport.name.isNotEmpty ? widget.passport.name : '';
-      _speech.speak('Great job $name! You have finished today’s memory exercises.');
+      _speech.speak(
+        'Great job $name! You have finished today’s memory exercises.',
+      );
     }
   }
 
@@ -230,15 +241,26 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
             children: [
               Chip(
                 backgroundColor: const Color(0xFFE8F0EC),
-                avatar: Icon(q.icon ?? Icons.psychology, size: 20, color: const Color(0xFF185A49)),
+                avatar: Icon(
+                  q.icon ?? Icons.psychology,
+                  size: 20,
+                  color: const Color(0xFF185A49),
+                ),
                 label: Text(
                   categoryName,
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF185A49)),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF185A49),
+                  ),
                 ),
               ),
               Text(
                 'Question ${_currentIndex + 1} of ${_questions.length}',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                ),
               ),
             ],
           ),
@@ -270,7 +292,11 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
                   color: const Color(0xFFE8F0EC),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(q.icon ?? Icons.help_outline, size: 48, color: const Color(0xFF185A49)),
+                child: Icon(
+                  q.icon ?? Icons.help_outline,
+                  size: 48,
+                  color: const Color(0xFF185A49),
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -306,7 +332,10 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
                 TextButton.icon(
                   onPressed: _speakCurrentQuestion,
                   icon: const Icon(Icons.volume_up, size: 20),
-                  label: const Text('Listen again', style: TextStyle(fontSize: 16)),
+                  label: const Text(
+                    'Listen again',
+                    style: TextStyle(fontSize: 16),
+                  ),
                 ),
               ],
             ),
@@ -350,7 +379,10 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
                 onTap: () => _onOptionSelected(index),
                 borderRadius: BorderRadius.circular(16),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 18,
+                  ),
                   decoration: BoxDecoration(
                     color: bgColor,
                     borderRadius: BorderRadius.circular(16),
@@ -382,14 +414,18 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: _isCorrect ? const Color(0xFFE8F5E9) : const Color(0xFFFFF3CD),
+                color: _isCorrect
+                    ? const Color(0xFFE8F5E9)
+                    : const Color(0xFFFFF3CD),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 children: [
                   Icon(
                     _isCorrect ? Icons.stars : Icons.lightbulb_outline,
-                    color: _isCorrect ? const Color(0xFF2E7D4E) : const Color(0xFF856404),
+                    color: _isCorrect
+                        ? const Color(0xFF2E7D4E)
+                        : const Color(0xFF856404),
                     size: 28,
                   ),
                   const SizedBox(width: 12),
@@ -399,7 +435,9 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: _isCorrect ? const Color(0xFF155724) : const Color(0xFF856404),
+                        color: _isCorrect
+                            ? const Color(0xFF155724)
+                            : const Color(0xFF856404),
                       ),
                     ),
                   ),
@@ -411,15 +449,22 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF185A49),
                 minimumSize: const Size.fromHeight(60),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
               onPressed: _nextQuestion,
               icon: Icon(_isCorrect ? Icons.arrow_forward : Icons.refresh),
               label: Text(
                 _isCorrect
-                    ? (_currentIndex + 1 < _questions.length ? 'Next Question' : 'Complete Game')
+                    ? (_currentIndex + 1 < _questions.length
+                          ? 'Next Question'
+                          : 'Complete Game')
                     : 'Try Next Question',
-                style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -431,12 +476,20 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
   Widget _buildFallbackIcon(IconData? icon) {
     return Container(
       color: const Color(0xFFE8F0EC),
-      child: Center(child: Icon(icon ?? Icons.person, size: 64, color: const Color(0xFF185A49))),
+      child: Center(
+        child: Icon(
+          icon ?? Icons.person,
+          size: 64,
+          color: const Color(0xFF185A49),
+        ),
+      ),
     );
   }
 
   Widget _buildCompletionView() {
-    final name = widget.passport.name.isNotEmpty ? widget.passport.name : 'friend';
+    final name = widget.passport.name.isNotEmpty
+        ? widget.passport.name
+        : 'friend';
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(28),
@@ -446,7 +499,11 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
             const CircleAvatar(
               radius: 54,
               backgroundColor: Color(0xFFD7EBDD),
-              child: Icon(Icons.celebration, size: 64, color: Color(0xFF185A49)),
+              child: Icon(
+                Icons.celebration,
+                size: 64,
+                color: Color(0xFF185A49),
+              ),
             ),
             const SizedBox(height: 24),
             Text(
@@ -461,7 +518,11 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
             const SizedBox(height: 12),
             Text(
               'You completed your memory exercises for today! You got $_correctCount of ${_questions.length} right on the first try.',
-              style: const TextStyle(fontSize: 18, color: Colors.black87, height: 1.4),
+              style: const TextStyle(
+                fontSize: 18,
+                color: Colors.black87,
+                height: 1.4,
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
@@ -503,7 +564,9 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF185A49),
                 minimumSize: const Size.fromHeight(64),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
               onPressed: () => Navigator.pop(context),
               icon: const Icon(Icons.home),

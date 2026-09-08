@@ -862,7 +862,7 @@
     </div>
   </div>
 
-  <!-- ── AI Checkup Simulator Modal ───────────────────── -->
+  <!-- ── AI Checkup Live Monitor ──────────────────────── -->
   <div class="modal-overlay" id="aiCheckupModal">
     <div class="modal-card ai-modal-card">
       <div class="modal-header">
@@ -883,24 +883,21 @@
             <div class="phone-body">
               <div class="saathi-avatar-circle">🤖</div>
               <div class="patient-prompt" id="patientPromptText">
-                "Namaste Mr. Bora! Your son Rahul asked me to check in with you. Who is in this photo?"
+                A three-question Memory Passport game will open on the patient's phone.
               </div>
               <div class="photo-placeholder-box">
-                <span style="font-size:36px">👨‍👦</span>
-                <span>Rahul & Mr. Bora (Guwahati 2024)</span>
+                <span style="font-size:36px">🧠</span>
+                <span>Family, medicine, routine, and life-memory recall</span>
               </div>
               <div class="voice-wave">
                 <span></span><span></span><span></span><span></span><span></span>
               </div>
-              <p class="patient-status-sub" id="patientStatusSub">Listening for voice answer...</p>
+              <p class="patient-status-sub" id="patientStatusSub">Waiting to send checkup…</p>
             </div>
           </div>
         </div>
 
-        <div class="ai-controls-row">
-          <button class="btn-ghost" id="simulateCorrectBtn">Simulate Correct Response (7.2s)</button>
-          <button class="btn-primary" id="simulateHintBtn">Simulate Hint Needed & Finish</button>
-        </div>
+        <p class="patient-status-sub">Results appear automatically in Cognitive Records when the patient answers.</p>
       </div>
     </div>
   </div>

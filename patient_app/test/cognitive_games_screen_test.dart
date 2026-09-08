@@ -3,8 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:patient_app/cognition/cognitive_engine.dart';
-import 'package:patient_app/cognition/cognitive_game_generator.dart';
 import 'package:patient_app/cognition/cognitive_games_screen.dart';
 import 'package:patient_app/cognition/cognitive_record.dart';
 import 'package:patient_app/cognition/record_store.dart';
@@ -41,6 +39,7 @@ Widget buildTestableScreen({
   required Passport passport,
   required RecordStore recordStore,
   required SpeechService speechService,
+  Future<void> Function(int correct, int total)? onCompleted,
 }) {
   return MaterialApp(
     localizationsDelegates: const [
@@ -54,13 +53,16 @@ Widget buildTestableScreen({
       passport: passport,
       recordStore: recordStore,
       speechService: speechService,
+      onCompleted: onCompleted,
     ),
   );
 }
 
 void main() {
   group('CognitiveGamesScreen widget tests', () {
-    testWidgets('renders question view with options and audio speech', (tester) async {
+    testWidgets('renders question view with options and audio speech', (
+      tester,
+    ) async {
       final recordStore = _FakeRecordStore();
       final speech = _FakeSpeechService();
       final passport = Passport.demo();
@@ -110,6 +112,44 @@ void main() {
 
       // Next question or complete game button is visible
       expect(find.byType(FilledButton), findsOneWidget);
+    });
+
+    testWidgets('reports the final score when a remote game completes', (
+      tester,
+    ) async {
+      final recordStore = _FakeRecordStore();
+      final speech = _FakeSpeechService();
+      int? completedCorrect;
+      int? completedTotal;
+
+      await tester.pumpWidget(
+        buildTestableScreen(
+          passport: Passport.demo(),
+          recordStore: recordStore,
+          speechService: speech,
+          onCompleted: (correct, total) async {
+            completedCorrect = correct;
+            completedTotal = total;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      for (var question = 0; question < 3; question++) {
+        await tester.tap(find.byKey(const ValueKey('option_0')));
+        await tester.pumpAndSettle();
+        final next = find.byType(FilledButton).last;
+        await tester.ensureVisible(next);
+        await tester.tap(next);
+        await tester.pumpAndSettle();
+      }
+
+      expect(completedCorrect, isNotNull);
+      expect(completedTotal, 3);
+      expect(
+        find.textContaining('You completed your memory exercises'),
+        findsOneWidget,
+      );
     });
   });
 }

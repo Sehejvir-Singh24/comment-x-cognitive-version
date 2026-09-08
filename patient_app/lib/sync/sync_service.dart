@@ -23,10 +23,21 @@ void syncCallback() {
   });
 }
 
+class RemoteCheckupCommand {
+  const RemoteCheckupCommand({required this.id, required this.question});
+
+  final String id;
+  final String question;
+}
+
 class SyncService {
   static StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
   _activePassportSubscription;
   static void Function(Passport)? _onPassportUpdated;
+  static StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _activeCheckupSubscription;
+  static Future<void> Function(RemoteCheckupCommand)? _onCheckupRequested;
+  static final Set<String> _handledCheckupIds = <String>{};
 
   static Future<void> initialize() async {
     if (!CloudSetup.configured) return;
@@ -113,6 +124,7 @@ class SyncService {
       await schedule();
       await flush();
       await _attachPassportListener();
+      await _attachCheckupListener();
     } else {
       await AppDatabase.use(
         null,
@@ -123,6 +135,8 @@ class SyncService {
       );
       _activePassportSubscription?.cancel();
       _activePassportSubscription = null;
+      _activeCheckupSubscription?.cancel();
+      _activeCheckupSubscription = null;
       if (CloudSetup.configured) await Workmanager().cancelAll();
     }
   }
@@ -210,6 +224,108 @@ class SyncService {
     _onPassportUpdated = null;
     await _activePassportSubscription?.cancel();
     _activePassportSubscription = null;
+  }
+
+  /// Listens for cognitive checkups requested by a linked caretaker portal.
+  /// A command is claimed before the callback runs so reconnects cannot open
+  /// the same assessment more than once.
+  static Future<void> startCheckupListener({
+    required Future<void> Function(RemoteCheckupCommand) onCheckupRequested,
+  }) async {
+    _onCheckupRequested = onCheckupRequested;
+    if (!CloudSetup.configured || !await enabled()) return;
+    await _attachCheckupListener();
+  }
+
+  static Future<void> _attachCheckupListener() async {
+    if (_onCheckupRequested == null ||
+        !CloudSetup.configured ||
+        !await enabled()) {
+      return;
+    }
+    try {
+      await CloudSetup.ensureReady();
+      if (FirebaseAuth.instance.currentUser == null) {
+        await FirebaseAuth.instance.signInAnonymously();
+      }
+      final patientId = await getEffectivePatientUid();
+      final commands = FirebaseFirestore.instance
+          .collection('patients')
+          .doc(patientId)
+          .collection('commands');
+
+      await _activeCheckupSubscription?.cancel();
+      _activeCheckupSubscription = commands
+          .where('status', isEqualTo: 'sent')
+          .snapshots()
+          .listen(
+            (snapshot) async {
+              for (final change in snapshot.docChanges) {
+                final doc = change.doc;
+                final data = doc.data();
+                if (data == null ||
+                    data['type'] != 'ai_checkup' ||
+                    !_handledCheckupIds.add(doc.id)) {
+                  continue;
+                }
+                try {
+                  await doc.reference.update({
+                    'status': 'started',
+                    'startedAt': FieldValue.serverTimestamp(),
+                  });
+                  await _onCheckupRequested?.call(
+                    RemoteCheckupCommand(
+                      id: doc.id,
+                      question:
+                          (data['question'] as String?)?.trim().isNotEmpty ==
+                              true
+                          ? (data['question'] as String).trim()
+                          : 'Memory checkup',
+                    ),
+                  );
+                } catch (err) {
+                  _handledCheckupIds.remove(doc.id);
+                  debugPrint(
+                    'Could not start caretaker checkup ${doc.id}: $err',
+                  );
+                }
+              }
+            },
+            onError: (Object err) {
+              debugPrint('Checkup Firestore listener error: $err');
+            },
+          );
+    } catch (err) {
+      debugPrint('Exception starting checkup listener: $err');
+    }
+  }
+
+  static Future<void> completeCheckupCommand(
+    String commandId, {
+    required int correct,
+    required int total,
+  }) async {
+    if (!CloudSetup.configured || !await enabled()) return;
+    final patientId = await getEffectivePatientUid();
+    await FirebaseFirestore.instance
+        .collection('patients')
+        .doc(patientId)
+        .collection('commands')
+        .doc(commandId)
+        .set({
+          'status': 'completed',
+          'correct': correct,
+          'total': total,
+          'completedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+    await flush();
+  }
+
+  static Future<void> stopCheckupListener() async {
+    _onCheckupRequested = null;
+    await _activeCheckupSubscription?.cancel();
+    _activeCheckupSubscription = null;
+    _handledCheckupIds.clear();
   }
 
   /// Pulls the latest passport document from Firestore.

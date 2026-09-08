@@ -1155,7 +1155,7 @@ function initSyncModal() {
 }
 
 // ══════════════════════════════════════════
-// AI CHECKUP DISPATCHER & SIMULATOR
+// AI CHECKUP DISPATCHER & LIVE MONITOR
 // ══════════════════════════════════════════
 function initAiCheckupModal() {
   const topBtn = document.getElementById('triggerAiCheckupTopBtn');
@@ -1163,28 +1163,47 @@ function initAiCheckupModal() {
   const closeBtn = document.getElementById('closeAiModal');
   const statusText = document.getElementById('aiStatusText');
   const statusSub = document.getElementById('patientStatusSub');
-  const correctBtn = document.getElementById('simulateCorrectBtn');
-  const hintBtn = document.getElementById('simulateHintBtn');
+  let stopWatchingCommand = null;
 
   window.openAiCheckupModal = function () {
-    if (modal) {
-      modal.classList.add('show');
-      if (statusText) statusText.textContent = 'Connecting to Mr. Bora\'s Saathi Companion App...';
-      if (statusSub) statusSub.textContent = 'Dispatching checkup command via Firebase Firestore...';
-
-      // Send real command to Firestore
-      sendAiCheckupCommandToFirestore('Family Recognition checkup').then(() => {
-        setTimeout(() => {
-          if (statusText) statusText.textContent = '🟢 Connected · AI Checkup Active on Mr. Bora\'s Phone';
-          if (statusSub) statusSub.textContent = 'Listening for voice response...';
-        }, 1000);
-      }).catch(() => {
-        setTimeout(() => {
-          if (statusText) statusText.textContent = '🟢 Connected · AI Checkup Active on Mr. Bora\'s Phone';
-          if (statusSub) statusSub.textContent = 'Listening for voice response...';
-        }, 1000);
-      });
+    if (!modal) return;
+    modal.classList.add('show');
+    if (!db || !currentPatientUid || !isFirebaseOnline) {
+      if (statusText) statusText.textContent = 'Connect this portal to the patient first';
+      if (statusSub) statusSub.textContent = 'Open Sync / Cloud Data and enter the phone link code.';
+      return;
     }
+
+    if (statusText) statusText.textContent = 'Sending memory checkup to the phone…';
+    if (statusSub) statusSub.textContent = 'Waiting for Saathi to receive the request.';
+    if (stopWatchingCommand) stopWatchingCommand();
+
+    sendAiCheckupCommandToFirestore('Memory Passport cognitive checkup').then(commandRef => {
+      stopWatchingCommand = commandRef.onSnapshot(snapshot => {
+        const command = snapshot.data() || {};
+        if (command.status === 'started') {
+          if (statusText) statusText.textContent = '🟢 Checkup started on the patient\'s phone';
+          if (statusSub) statusSub.textContent = 'Saathi opened the cognitive games and is reading the questions aloud.';
+        } else if (command.status === 'completed') {
+          const score = Number.isFinite(command.correct) && Number.isFinite(command.total)
+            ? ` · Score ${command.correct}/${command.total}`
+            : '';
+          if (statusText) statusText.textContent = `✓ Checkup completed${score}`;
+          if (statusSub) statusSub.textContent = 'The answers are now available in Cognitive Records.';
+          stopWatchingCommand?.();
+          stopWatchingCommand = null;
+        } else {
+          if (statusText) statusText.textContent = 'Checkup sent · waiting for the phone';
+          if (statusSub) statusSub.textContent = 'Keep the patient phone online with Saathi running.';
+        }
+      }, err => {
+        if (statusText) statusText.textContent = 'Could not monitor this checkup';
+        if (statusSub) statusSub.textContent = err.message;
+      });
+    }).catch(err => {
+      if (statusText) statusText.textContent = 'Could not send the checkup';
+      if (statusSub) statusSub.textContent = err.message;
+    });
   };
 
   if (topBtn) {
@@ -1200,48 +1219,6 @@ function initAiCheckupModal() {
     });
   }
 
-  function logCheckupResult(correct, hints) {
-    const newRecord = {
-      type: 'family',
-      label: 'Family Recognition (AI Checkup)',
-      correct,
-      hints,
-      time: 'Just now',
-      diff: 'medium',
-    };
-    DEMO.recentActivity.unshift(newRecord);
-    saveState();
-    renderRecentActivity();
-    renderRecordsTable();
-
-    // Also push record to Firebase Firestore if online
-    if (db && isFirebaseOnline) {
-      const recId = `checkup_${Date.now()}`;
-      db.collection('patients').doc(currentPatientUid).collection('records').doc(recId).set({
-        schemaVersion: 1,
-        id: recId,
-        kind: 'familyRecognition',
-        entryId: 'rahul_1',
-        correct,
-        responseMs: 2400,
-        hintsUsed: hints,
-        difficulty: 2,
-        timestamp: new Date().toISOString()
-      }).catch(err => console.warn('Could not sync checkup to Firestore:', err));
-    }
-
-    if (statusText) statusText.textContent = `✓ Checkup Finished! Logged: ${correct ? 'Correct' : 'Needed support'}`;
-    setTimeout(() => {
-      modal?.classList.remove('show');
-    }, 1500);
-  }
-
-  if (correctBtn) {
-    correctBtn.addEventListener('click', () => logCheckupResult(true, 0));
-  }
-  if (hintBtn) {
-    hintBtn.addEventListener('click', () => logCheckupResult(true, 1));
-  }
 }
 
 // ══════════════════════════════════════════
@@ -1516,7 +1493,9 @@ async function claimPatientAccess(linkCode) {
 }
 
 function sendAiCheckupCommandToFirestore(question) {
-  if (!db || !currentPatientUid || !isFirebaseOnline) return Promise.resolve();
+  if (!db || !currentPatientUid || !isFirebaseOnline) {
+    return Promise.reject(new Error('The patient is not linked to Firebase.'));
+  }
   const cmdRef = db.collection('patients').doc(currentPatientUid).collection('commands').doc();
   return cmdRef.set({
     type: 'ai_checkup',
@@ -1524,7 +1503,7 @@ function sendAiCheckupCommandToFirestore(question) {
     question: question || 'Cognitive checkup challenge',
     timestamp: firebase.firestore.FieldValue.serverTimestamp(),
     createdAt: new Date().toISOString()
-  });
+  }).then(() => cmdRef);
 }
 
 function pullFromFirestore() {

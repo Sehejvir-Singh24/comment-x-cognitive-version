@@ -70,6 +70,7 @@ class _LauncherHomeState extends State<LauncherHome>
   String? _welcomeMessage;
   int _checkInIndex = 0;
   bool _greeted = false;
+  bool _remoteCheckupOpen = false;
   @override
   void initState() {
     super.initState();
@@ -99,6 +100,41 @@ class _LauncherHomeState extends State<LauncherHome>
         },
       ),
     );
+    unawaited(
+      SyncService.startCheckupListener(onCheckupRequested: _openRemoteCheckup),
+    );
+  }
+
+  Future<void> _openRemoteCheckup(RemoteCheckupCommand command) async {
+    if (!mounted || _remoteCheckupOpen) return;
+    if (passport == null) await refreshPassport();
+    final currentPassport = passport;
+    if (!mounted || currentPassport == null) return;
+
+    _remoteCheckupOpen = true;
+    try {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      await _voice.speak(
+        'Your caregiver has sent a short memory checkup. Let us play together.',
+      );
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => CognitiveGamesScreen(
+            passport: currentPassport,
+            recordStore: recordStore,
+            speechService: _voice,
+            onCompleted: (correct, total) => SyncService.completeCheckupCommand(
+              command.id,
+              correct: correct,
+              total: total,
+            ),
+          ),
+        ),
+      );
+    } finally {
+      _remoteCheckupOpen = false;
+    }
   }
 
   Future<void> refreshPassport() async {
@@ -117,6 +153,7 @@ class _LauncherHomeState extends State<LauncherHome>
   @override
   void dispose() {
     unawaited(SyncService.stopPassportListener());
+    unawaited(SyncService.stopCheckupListener());
     WidgetsBinding.instance.removeObserver(this);
     LauncherBridge.channel.setMethodCallHandler(null);
     _checkInTimer?.cancel();
