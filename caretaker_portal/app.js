@@ -1248,12 +1248,12 @@ function initAiCheckupModal() {
 // FIREBASE CLOUD FIRESTORE INTEGRATION
 // ══════════════════════════════════════════
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBbs5mGCFb7VhKHwiC_FUoohBH1M_wKPQU",
+  apiKey: "AIzaSyBhfqENBQ-8V32m3-Ms6qC3EX8iT93Grcw",
   authDomain: "hiasaathi.firebaseapp.com",
   projectId: "hiasaathi",
   storageBucket: "hiasaathi.firebasestorage.app",
   messagingSenderId: "401722228770",
-  appId: "1:401722228770:web:saathi-caretaker"
+  appId: "1:401722228770:web:6a95332a15d2bf397bca7b"
 };
 
 let db = null;
