@@ -1,51 +1,54 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function for user ownership or caretaker authenticated access
-    function isAuth() { return request.auth != null; }
-
-    match /patients/{uid}/passport/current {
-      allow read: if isAuth();
-      allow create, update: if isAuth()
-        && request.resource.data.keys().hasOnly(['schemaVersion','name','age','region','isDemo','entries','revision'])
-        && request.resource.data.schemaVersion == 1
-        && request.resource.data.name is string
-        && request.resource.data.age is int
-        && request.resource.data.region is string
-        && request.resource.data.isDemo is bool
-        && request.resource.data.entries is list
-        && request.resource.data.entries.size() <= 500
-        && request.resource.data.revision is int;
-      allow delete: if isAuth();
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isOwner(patientId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/patients/$(patientId))
+        && get(/databases/$(database)/documents/patients/$(patientId)).data.ownerUid == request.auth.uid;
+    }
+    function isMember(patientId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/patients/$(patientId)/members/$(request.auth.uid));
     }
 
-    match /patients/{uid}/records/{id} {
-      allow read, delete: if isAuth();
-      allow create: if isAuth()
-        && request.resource.data.keys().hasOnly(['schemaVersion','id','kind','entryId','correct','responseMs','hintsUsed','difficulty','timestamp'])
-        && request.resource.data.schemaVersion == 1
-        && request.resource.data.id == id
-        && request.resource.data.kind in ['familyRecognition','videoRecall','routineRecall','medicineRecall','episodicRecall']
-        && request.resource.data.entryId is string
-        && request.resource.data.correct is bool
-        && request.resource.data.responseMs is int && request.resource.data.responseMs >= 0
-        && request.resource.data.hintsUsed is int && request.resource.data.hintsUsed >= 0
-        && request.resource.data.difficulty in [1,2,3]
-        && request.resource.data.timestamp is string;
-      allow update: if isAuth();
+    match /pairings/{linkCode} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && linkCode == request.auth.uid
+        && request.resource.data.patientId == linkCode
+        && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if signedIn()
+        && resource.data.ownerUid == request.auth.uid;
     }
 
-    match /patients/{uid}/notes/{id} {
-      allow read, write: if isAuth();
-    }
+    match /patients/{patientId} {
+      allow create: if signedIn()
+        && patientId == request.auth.uid
+        && request.resource.data.ownerUid == request.auth.uid;
+      allow read: if isOwner(patientId) || isMember(patientId);
+      allow update, delete: if isOwner(patientId);
 
-    match /patients/{uid}/commands/{id} {
-      allow read, write: if isAuth();
-    }
+      match /members/{memberUid} {
+        allow read: if isMember(patientId);
+        allow create: if signedIn()
+          && memberUid == request.auth.uid
+          && request.resource.data.pairingCode == patientId
+          && exists(/databases/$(database)/documents/pairings/$(patientId))
+          && get(/databases/$(database)/documents/pairings/$(patientId)).data.patientId == patientId;
+        allow update: if signedIn()
+          && memberUid == request.auth.uid
+          && request.resource.data.pairingCode == resource.data.pairingCode;
+        allow delete: if isOwner(patientId);
+      }
 
-    match /patients/{uid}/alerts/{id} {
-      allow read, write: if isAuth();
+      match /{collection}/{documentId} {
+        allow read, create, update: if isMember(patientId);
+        allow delete: if isOwner(patientId);
+      }
     }
   }
 }
-

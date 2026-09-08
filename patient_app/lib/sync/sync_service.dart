@@ -24,14 +24,14 @@ void syncCallback() {
 }
 
 class SyncService {
-  static const String defaultPatientUid = 'demo_patient_bora';
   static StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
-      _activePassportSubscription;
+  _activePassportSubscription;
+  static void Function(Passport)? _onPassportUpdated;
 
   static Future<void> initialize() async {
     if (!CloudSetup.configured) return;
     await Workmanager().initialize(syncCallback);
-    if (await enabled()) await schedule();
+    if (await enabled()) await setEnabled(true);
   }
 
   static Future<bool> enabled() => AppDatabase.use(
@@ -47,7 +47,36 @@ class SyncService {
     if (configured != null && configured.isNotEmpty) {
       return configured;
     }
-    return defaultPatientUid;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) return user.uid;
+    throw StateError('Cloud sync has not been linked on this phone.');
+  }
+
+  static Future<void> _provisionPatientAccess(String patientId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.uid != patientId) {
+      throw StateError('The patient link does not match this phone.');
+    }
+    final firestore = FirebaseFirestore.instance;
+    await firestore.collection('patients').doc(patientId).set({
+      'ownerUid': user.uid,
+      'createdAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    await firestore.collection('pairings').doc(patientId).set({
+      'patientId': patientId,
+      'ownerUid': user.uid,
+      'createdAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    await firestore
+        .collection('patients')
+        .doc(patientId)
+        .collection('members')
+        .doc(user.uid)
+        .set({
+          'role': 'patient',
+          'pairingCode': patientId,
+          'joinedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
   }
 
   static Future<void> setEnabled(bool value) async {
@@ -56,14 +85,13 @@ class SyncService {
       if (FirebaseAuth.instance.currentUser == null) {
         await FirebaseAuth.instance.signInAnonymously();
       }
+      final patientId = FirebaseAuth.instance.currentUser!.uid;
+      await _provisionPatientAccess(patientId);
       await AppDatabase.use(
         null,
         (db) => db.transaction(() async {
           await db.setSetting('syncConsent', 'yes');
-          final existing = await db.setting('syncUid');
-          if (existing == null || existing.isEmpty) {
-            await db.setSetting('syncUid', defaultPatientUid);
-          }
+          await db.setSetting('syncUid', patientId);
           final passport = await db.loadPassport();
           final data = passport.toJson();
           data['entries'] = passport.entries
@@ -73,10 +101,18 @@ class SyncService {
           for (final record in await db.records()) {
             await db.enqueue('records', record.id, record.toJson());
           }
+          for (final completion in await db.dailyCompletionPayloads()) {
+            final day = completion['day'] as String;
+            final eventId = completion['eventId'] as String;
+            final documentId = '$day--$eventId'.replaceAll('/', '_');
+            await db.enqueue('dailyCompletions', documentId, completion);
+          }
         }),
       );
       await Workmanager().initialize(syncCallback);
       await schedule();
+      await flush();
+      await _attachPassportListener();
     } else {
       await AppDatabase.use(
         null,
@@ -102,22 +138,15 @@ class SyncService {
   );
 
   static Future<String?> getSyncUid() async {
-    final uid = await AppDatabase.use(
-      null,
-      (db) async => await db.setting('syncUid'),
-    );
-    return uid ?? defaultPatientUid;
+    return AppDatabase.use(null, (db) async => await db.setting('syncUid'));
   }
 
-  static Future<int> getPendingCount() => AppDatabase.use(
-    null,
-    (db) async {
-      final rows = await db
-          .customSelect('SELECT COUNT(*) as c FROM sync_outbox')
-          .get();
-      return rows.isEmpty ? 0 : rows.first.read<int>('c');
-    },
-  );
+  static Future<int> getPendingCount() => AppDatabase.use(null, (db) async {
+    final rows = await db
+        .customSelect('SELECT COUNT(*) as c FROM sync_outbox')
+        .get();
+    return rows.isEmpty ? 0 : rows.first.read<int>('c');
+  });
 
   static Future<int> syncNow() async {
     final flushed = await flush();
@@ -128,26 +157,32 @@ class SyncService {
   /// Listens to live updates on the Firestore passport document.
   /// When updated on the caretaker portal, immediately updates local SQLite,
   /// reschedules reminders, and invokes [onPassportUpdated].
-  static StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
-      startPassportListener({
+  static Future<void> startPassportListener({
     required void Function(Passport) onPassportUpdated,
-  }) {
-    if (!CloudSetup.configured) return null;
-    try {
-      CloudSetup.ensureReady().then((_) async {
-        if (FirebaseAuth.instance.currentUser == null) {
-          await FirebaseAuth.instance.signInAnonymously();
-        }
-        final patientId = await getEffectivePatientUid();
-        final stream = FirebaseFirestore.instance
-            .collection('patients')
-            .doc(patientId)
-            .collection('passport')
-            .doc('current')
-            .snapshots();
+  }) async {
+    _onPassportUpdated = onPassportUpdated;
+    if (!CloudSetup.configured || !await enabled()) return;
+    await _attachPassportListener();
+  }
 
-        _activePassportSubscription?.cancel();
-        _activePassportSubscription = stream.listen((snapshot) async {
+  static Future<void> _attachPassportListener() async {
+    if (!CloudSetup.configured || !await enabled()) return;
+    try {
+      await CloudSetup.ensureReady();
+      if (FirebaseAuth.instance.currentUser == null) {
+        await FirebaseAuth.instance.signInAnonymously();
+      }
+      final patientId = await getEffectivePatientUid();
+      final stream = FirebaseFirestore.instance
+          .collection('patients')
+          .doc(patientId)
+          .collection('passport')
+          .doc('current')
+          .snapshots();
+
+      await _activePassportSubscription?.cancel();
+      _activePassportSubscription = stream.listen(
+        (snapshot) async {
           if (snapshot.exists && snapshot.data() != null) {
             try {
               final passport = Passport.fromJson(snapshot.data()!);
@@ -156,21 +191,25 @@ class SyncService {
                 (db) => db.savePassport(passport, enqueueSync: false),
               );
               await ReminderBridge.schedule(passport);
-              onPassportUpdated(passport);
+              _onPassportUpdated?.call(passport);
             } catch (err) {
               debugPrint('Error parsing cloud passport snapshot: $err');
             }
           }
-        }, onError: (Object err) {
+        },
+        onError: (Object err) {
           debugPrint('Passport Firestore listener error: $err');
-        });
-      }).catchError((Object err) {
-        debugPrint('Could not initialize passport listener: $err');
-      });
+        },
+      );
     } catch (e) {
       debugPrint('Exception starting passport listener: $e');
     }
-    return _activePassportSubscription;
+  }
+
+  static Future<void> stopPassportListener() async {
+    _onPassportUpdated = null;
+    await _activePassportSubscription?.cancel();
+    _activePassportSubscription = null;
   }
 
   /// Pulls the latest passport document from Firestore.
@@ -239,6 +278,8 @@ class SyncService {
             final old = await tx.get(ref);
             if (kind == 'records') {
               if (!old.exists) tx.set(ref, payload);
+            } else if (kind == 'dailyCompletions') {
+              tx.set(ref, payload, SetOptions(merge: true));
             } else if (!old.exists ||
                 ((old.data()?['revision'] as int?) ?? -1) < seq) {
               tx.set(ref, {...payload, 'revision': seq});

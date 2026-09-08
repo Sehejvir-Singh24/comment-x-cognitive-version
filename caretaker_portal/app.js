@@ -413,24 +413,16 @@ function applyPatientName() {
 function renderTodayList() {
   const ul = document.getElementById('todayList');
   if (!ul) return;
-  ul.innerHTML = DEMO.todayPlan.map((item, index) => `
+  ul.innerHTML = DEMO.todayPlan.map(item => `
     <li class="today-item">
       <span class="today-time">${item.time}</span>
       <span class="today-name">${item.name}</span>
-      <span class="today-check ${item.done ? 'done' : 'pending'}" onclick="toggleTodayPlan(${index})">
+      <span class="today-check ${item.done ? 'done' : 'pending'}" title="Updated from the Saathi phone app">
         ${item.done ? '✓' : '○'}
       </span>
     </li>
   `).join('');
 }
-
-window.toggleTodayPlan = function (index) {
-  if (DEMO.todayPlan[index]) {
-    DEMO.todayPlan[index].done = !DEMO.todayPlan[index].done;
-    saveState();
-    renderTodayList();
-  }
-};
 
 // ── Routine list (Interactive) ────────────────────────
 function renderRoutineList() {
@@ -648,9 +640,10 @@ function syncRoutinesFromPassport() {
       const v = e.values || {};
       const isMed = e.kind === 'medicine' || (v.name && v.name.toLowerCase().includes('med'));
       return {
+        id: e.id,
         time: v.time || '08:00',
         name: isMed && !v.name?.includes('💊') ? `💊 ${v.name}` : (v.name || 'Activity'),
-        done: false
+        done: cloudCompletedEventIds.has(e.id)
       };
     });
     renderTodayList();
@@ -658,7 +651,7 @@ function syncRoutinesFromPassport() {
 }
 
 function savePassportToFirestore() {
-  if (!db) {
+  if (!db || !currentPatientUid || !isFirebaseOnline) {
     console.warn('Firebase db not available, passport saved locally.');
     return Promise.resolve();
   }
@@ -1085,15 +1078,31 @@ function initSyncModal() {
 
   // Connect & Listen to Custom Patient UID
   if (connectBtn && patientInput) {
-    connectBtn.addEventListener('click', () => {
-      const uid = patientInput.value.trim();
-      if (!uid) return;
-      currentPatientUid = uid;
-      localStorage.setItem('saathi_patient_uid', uid);
-      attachFirestoreListeners(uid);
-      updateFirebaseBadge(true, `Firebase: Listening to ${uid}`);
+    connectBtn.addEventListener('click', async () => {
+      const linkCode = patientInput.value.trim();
       const status = document.getElementById('firebaseSyncStatus');
-      if (status) status.textContent = `🟢 Connected & listening to patient: ${uid}`;
+      if (!linkCode) {
+        if (status) status.textContent = 'Enter the link code shown on the Saathi phone.';
+        return;
+      }
+      connectBtn.disabled = true;
+      if (status) status.textContent = 'Checking the patient link code…';
+      try {
+        const patientId = await claimPatientAccess(linkCode);
+        currentPatientUid = patientId;
+        isFirebaseOnline = true;
+        localStorage.setItem('saathi_patient_uid', patientId);
+        attachFirestoreListeners(patientId);
+        updateFirebaseBadge(true, 'Firebase: Patient linked');
+        if (status) status.textContent = `🟢 Linked to patient: ${patientId}`;
+      } catch (err) {
+        console.error('Patient link failed:', err);
+        isFirebaseOnline = false;
+        updateFirebaseBadge(false, 'Firebase: Link failed');
+        if (status) status.textContent = `Could not link: ${err.message}`;
+      } finally {
+        connectBtn.disabled = false;
+      }
     });
   }
 
@@ -1248,9 +1257,29 @@ const FIREBASE_CONFIG = {
 };
 
 let db = null;
-let currentPatientUid = localStorage.getItem('saathi_patient_uid') || 'demo_patient_bora';
+const savedPatientUid = localStorage.getItem('saathi_patient_uid');
+let currentPatientUid = savedPatientUid === 'demo_patient_bora'
+  ? ''
+  : (savedPatientUid || '');
 let activeUnsubscribers = [];
 let isFirebaseOnline = false;
+let cloudCompletedEventIds = new Set();
+
+function localDayKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function applyCloudCompletions() {
+  DEMO.todayPlan = (DEMO.todayPlan || []).map(item => ({
+    ...item,
+    done: item.id ? cloudCompletedEventIds.has(item.id) : item.done === true
+  }));
+  renderTodayList();
+  saveState();
+}
 
 function initFirebase() {
   if (typeof firebase === 'undefined') {
@@ -1265,15 +1294,28 @@ function initFirebase() {
     db = firebase.firestore();
 
     // Authenticate anonymously
-    firebase.auth().signInAnonymously().then(() => {
-      isFirebaseOnline = true;
-      updateFirebaseBadge(true, 'Firebase: hiasaathi (Live)');
-      attachFirestoreListeners(currentPatientUid);
+    firebase.auth().signInAnonymously().then(async () => {
+      if (currentPatientUid) {
+        try {
+          currentPatientUid = await claimPatientAccess(currentPatientUid);
+          isFirebaseOnline = true;
+          attachFirestoreListeners(currentPatientUid);
+          updateFirebaseBadge(true, 'Firebase: Patient linked');
+        } catch (err) {
+          console.warn('Saved patient link is no longer valid:', err.message);
+          localStorage.removeItem('saathi_patient_uid');
+          currentPatientUid = '';
+          isFirebaseOnline = false;
+          updateFirebaseBadge(false, 'Firebase: Enter phone link code');
+        }
+      } else {
+        isFirebaseOnline = false;
+        updateFirebaseBadge(false, 'Firebase: Enter phone link code');
+      }
     }).catch(err => {
-      console.warn('Firebase Auth notice (connecting direct):', err.message);
-      isFirebaseOnline = true;
-      updateFirebaseBadge(true, 'Firebase: hiasaathi (Live)');
-      attachFirestoreListeners(currentPatientUid);
+      console.error('Firebase anonymous sign-in failed:', err.message);
+      isFirebaseOnline = false;
+      updateFirebaseBadge(false, 'Firebase: Sign-in failed');
     });
   } catch (err) {
     console.error('Firebase initialization error:', err);
@@ -1349,13 +1391,14 @@ function recalculateStability() {
 }
 
 function attachFirestoreListeners(patientUid) {
-  if (!db) return;
+  if (!db || !patientUid) return;
 
   // Unsubscribe previous listeners
   activeUnsubscribers.forEach(unsub => {
     try { unsub(); } catch (_) {}
   });
   activeUnsubscribers = [];
+  cloudCompletedEventIds = new Set();
 
   // 1. Listen to Records: patients/{uid}/records
   try {
@@ -1423,10 +1466,57 @@ function attachFirestoreListeners(patientUid) {
   } catch (err) {
     console.warn('Could not attach passport listener:', err);
   }
+
+  // 3. Listen to today's medicine and routine confirmations from the phone.
+  try {
+    const completionsRef = db
+      .collection('patients')
+      .doc(patientUid)
+      .collection('dailyCompletions')
+      .where('day', '==', localDayKey());
+    const unsubCompletions = completionsRef.onSnapshot(snapshot => {
+      const completed = new Set();
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (data && typeof data.eventId === 'string') completed.add(data.eventId);
+      });
+      cloudCompletedEventIds = completed;
+      applyCloudCompletions();
+      updateFirebaseBadge(true, 'Firebase: hiasaathi (Live)');
+    }, err => {
+      console.warn('Firestore daily completions listener:', err.message);
+    });
+    activeUnsubscribers.push(unsubCompletions);
+  } catch (err) {
+    console.warn('Could not attach daily completions listener:', err);
+  }
+}
+
+async function claimPatientAccess(linkCode) {
+  if (!db || !firebase.auth().currentUser) {
+    throw new Error('Firebase is not signed in yet. Please try again.');
+  }
+  const pairing = await db.collection('pairings').doc(linkCode).get();
+  if (!pairing.exists || pairing.data()?.patientId !== linkCode) {
+    throw new Error('That link code was not found. Copy it again from the phone.');
+  }
+  const patientId = pairing.data().patientId;
+  const caretakerUid = firebase.auth().currentUser.uid;
+  await db
+    .collection('patients')
+    .doc(patientId)
+    .collection('members')
+    .doc(caretakerUid)
+    .set({
+      role: 'caretaker',
+      pairingCode: linkCode,
+      joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  return patientId;
 }
 
 function sendAiCheckupCommandToFirestore(question) {
-  if (!db) return Promise.resolve();
+  if (!db || !currentPatientUid || !isFirebaseOnline) return Promise.resolve();
   const cmdRef = db.collection('patients').doc(currentPatientUid).collection('commands').doc();
   return cmdRef.set({
     type: 'ai_checkup',
@@ -1438,7 +1528,7 @@ function sendAiCheckupCommandToFirestore(question) {
 }
 
 function pullFromFirestore() {
-  if (!db) {
+  if (!db || !currentPatientUid || !isFirebaseOnline) {
     alert('Firebase is not connected.');
     return;
   }
@@ -1478,7 +1568,7 @@ function pullFromFirestore() {
 }
 
 function seedFirestoreWithDemoData() {
-  if (!db) {
+  if (!db || !currentPatientUid || !isFirebaseOnline) {
     alert('Firebase is not initialized.');
     return;
   }

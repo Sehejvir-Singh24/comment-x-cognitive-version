@@ -70,7 +70,6 @@ class _LauncherHomeState extends State<LauncherHome>
   String? _welcomeMessage;
   int _checkInIndex = 0;
   bool _greeted = false;
-  StreamSubscription? _passportSub;
   @override
   void initState() {
     super.initState();
@@ -90,13 +89,15 @@ class _LauncherHomeState extends State<LauncherHome>
     });
     refresh();
     refreshPassport();
-    _passportSub = SyncService.startPassportListener(
-      onPassportUpdated: (updated) {
-        if (mounted) {
-          setState(() => passport = updated);
-          _welcome(updated);
-        }
-      },
+    unawaited(
+      SyncService.startPassportListener(
+        onPassportUpdated: (updated) {
+          if (mounted) {
+            setState(() => passport = updated);
+            _welcome(updated);
+          }
+        },
+      ),
     );
   }
 
@@ -115,7 +116,7 @@ class _LauncherHomeState extends State<LauncherHome>
 
   @override
   void dispose() {
-    _passportSub?.cancel();
+    unawaited(SyncService.stopPassportListener());
     WidgetsBinding.instance.removeObserver(this);
     LauncherBridge.channel.setMethodCallHandler(null);
     _checkInTimer?.cancel();
@@ -164,16 +165,17 @@ class _LauncherHomeState extends State<LauncherHome>
     await _openTalk('Saathi check-in. $question');
   }
 
-  Future<void> _openTalk([String? openingMessage]) => Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (_) => TalkScreen(
-        passport: passport!,
-        speech: _voice,
-        startListening: true,
-        openingMessage: openingMessage,
-      ),
-    ),
-  );
+  Future<void> _openTalk([String? openingMessage]) =>
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => TalkScreen(
+            passport: passport!,
+            speech: _voice,
+            startListening: true,
+            openingMessage: openingMessage,
+          ),
+        ),
+      );
 
   String _passportQuestion(Passport value) {
     final routine = value.entries.where(
@@ -466,7 +468,10 @@ class _LauncherHomeState extends State<LauncherHome>
                   elevation: 2,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
-                    side: const BorderSide(color: Color(0xFF185A49), width: 1.5),
+                    side: const BorderSide(
+                      color: Color(0xFF185A49),
+                      width: 1.5,
+                    ),
                   ),
                   color: const Color(0xFFF1F8F5),
                   child: InkWell(
@@ -474,13 +479,13 @@ class _LauncherHomeState extends State<LauncherHome>
                     onTap: passport == null
                         ? null
                         : () => Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => CognitiveGamesScreen(
-                                  passport: passport!,
-                                  recordStore: recordStore,
-                                ),
+                            MaterialPageRoute<void>(
+                              builder: (_) => CognitiveGamesScreen(
+                                passport: passport!,
+                                recordStore: recordStore,
                               ),
                             ),
+                          ),
                     child: Padding(
                       padding: const EdgeInsets.all(20),
                       child: Row(

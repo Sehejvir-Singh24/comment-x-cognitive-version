@@ -822,14 +822,14 @@
             <span class="badge badge-success" id="modalFirebaseStatusPill">Live Connected</span>
           </div>
           <p style="font-size:12px;color:var(--text-secondary);margin:8px 0 12px 0;">
-            Connected to Firebase project <code>hiasaathi</code>. Any cognitive game results, medicine confirmations, or routine checkoffs automatically sync here in real time.
+            First enable cloud sync in Saathi's Caregiver Dashboard, then paste the phone's link code here. Memory Passport changes, medicine confirmations, and routine checkoffs update in real time.
           </p>
 
           <div style="margin-bottom:12px;">
-            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Patient Cloud ID / Filter:</label>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Phone link code:</label>
             <div style="display:flex;gap:8px;">
-              <input type="text" id="patientCloudIdInput" style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border-light);font-size:13px;" value="demo_patient_bora" placeholder="Enter patient UID" />
-              <button class="btn-primary" id="btnConnectFirestore" style="white-space:nowrap;padding:8px 14px;font-size:13px;">Connect & Listen</button>
+              <input type="text" id="patientCloudIdInput" style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border-light);font-size:13px;" autocomplete="off" placeholder="Paste the code copied from Saathi" />
+              <button class="btn-primary" id="btnConnectFirestore" style="white-space:nowrap;padding:8px 14px;font-size:13px;">Link Patient</button>
             </div>
           </div>
 
@@ -841,7 +841,7 @@
               <span>🔄</span> Refresh Cloud
             </button>
           </div>
-          <div id="firebaseSyncStatus" style="font-size:12px;color:var(--green-700);font-weight:500;">🟢 Connected to hiasaathi Firestore</div>
+          <div id="firebaseSyncStatus" style="font-size:12px;color:var(--green-700);font-weight:500;">Enable sync on the phone, then enter its link code.</div>
         </div>
 
         <div class="sync-actions" style="margin-top:20px;">
@@ -903,6 +903,7 @@
         </div>
       </div>
     </div>
+  </div>
 
   <!-- ── Modal: Edit Patient Profile ────────────────── -->
   <div class="modal-overlay" id="passportProfileModal">

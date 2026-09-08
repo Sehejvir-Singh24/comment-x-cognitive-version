@@ -149,27 +149,27 @@ class AppDatabase extends GeneratedDatabase {
 
   Future<void> savePassport(Passport passport, {bool enqueueSync = true}) =>
       transaction(() async {
-    final data = passport.toJson()..remove('entries');
-    await customStatement(
-      'INSERT OR REPLACE INTO patient_profiles VALUES (1, ?)',
-      [jsonEncode(data)],
-    );
-    await customStatement('DELETE FROM memory_entries');
-    if (enqueueSync && await setting('syncConsent') == 'yes') {
-      final cloud = passport.toJson();
-      cloud['entries'] = passport.entries
-          .map((e) => e.toJson()..remove('photo'))
-          .toList();
-      await enqueue('passport', 'current', cloud);
-    }
-    for (final entry in passport.entries) {
-      await customStatement('INSERT INTO memory_entries VALUES (?, ?, ?)', [
-        entry.id,
-        entry.kind.name,
-        jsonEncode(entry.toJson()),
-      ]);
-    }
-  });
+        final data = passport.toJson()..remove('entries');
+        await customStatement(
+          'INSERT OR REPLACE INTO patient_profiles VALUES (1, ?)',
+          [jsonEncode(data)],
+        );
+        await customStatement('DELETE FROM memory_entries');
+        if (enqueueSync && await setting('syncConsent') == 'yes') {
+          final cloud = passport.toJson();
+          cloud['entries'] = passport.entries
+              .map((e) => e.toJson()..remove('photo'))
+              .toList();
+          await enqueue('passport', 'current', cloud);
+        }
+        for (final entry in passport.entries) {
+          await customStatement('INSERT INTO memory_entries VALUES (?, ?, ?)', [
+            entry.id,
+            entry.kind.name,
+            jsonEncode(entry.toJson()),
+          ]);
+        }
+      });
   Future<void> saveRecord(CognitiveRecord record) => transaction(() async {
     final payload = jsonEncode(record.toJson());
     final old = await customSelect(
@@ -210,14 +210,46 @@ class AppDatabase extends GeneratedDatabase {
     return rows.map((row) => row.read<String>('event_id')).toSet();
   }
 
+  Future<List<Map<String, dynamic>>> dailyCompletionPayloads() async {
+    final rows = await customSelect(
+      'SELECT event_id, day, completed_at FROM daily_completions '
+      'ORDER BY day, completed_at',
+    ).get();
+    return rows
+        .map(
+          (row) => <String, dynamic>{
+            'schemaVersion': 1,
+            'eventId': row.read<String>('event_id'),
+            'day': row.read<String>('day'),
+            'completedAt': row.read<int>('completed_at'),
+            'source': 'patient',
+          },
+        )
+        .toList();
+  }
+
   /// Completion is local and idempotent. It never changes a medicine dose or
   /// suppresses a reminder; it only records that the patient or caregiver
   /// confirmed today's task.
   Future<void> markEventCompleted(String eventId, DateTime day) =>
-      customStatement(
-        'INSERT OR REPLACE INTO daily_completions VALUES (?, ?, ?)',
-        [eventId, _dayKey(day), DateTime.now().millisecondsSinceEpoch],
-      );
+      transaction(() async {
+        final dayKey = _dayKey(day);
+        final completedAt = DateTime.now().millisecondsSinceEpoch;
+        await customStatement(
+          'INSERT OR REPLACE INTO daily_completions VALUES (?, ?, ?)',
+          [eventId, dayKey, completedAt],
+        );
+        if (await setting('syncConsent') == 'yes') {
+          final documentId = '$dayKey--$eventId'.replaceAll('/', '_');
+          await enqueue('dailyCompletions', documentId, {
+            'schemaVersion': 1,
+            'eventId': eventId,
+            'day': dayKey,
+            'completedAt': completedAt,
+            'source': 'patient',
+          });
+        }
+      });
 
   static String _dayKey(DateTime value) =>
       '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';

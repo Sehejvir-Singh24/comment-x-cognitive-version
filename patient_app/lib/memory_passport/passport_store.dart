@@ -1,8 +1,10 @@
-import '../storage/app_database.dart';
-
+import 'dart:async';
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
+
+import '../storage/app_database.dart';
+import '../sync/sync_service.dart';
 
 import 'passport.dart';
 
@@ -31,8 +33,15 @@ class PassportStore {
   Future<Passport> load() =>
       AppDatabase.use(_directory, (db) => db.loadPassport());
 
-  Future<void> save(Passport passport) =>
-      _exclusive(() => _write(passport, enqueueSync: true));
+  Future<void> save(Passport passport) => _exclusive(() async {
+    await _write(passport, enqueueSync: true);
+    unawaited(
+      SyncService.flush().then<void>(
+        (_) {},
+        onError: (Object _, StackTrace _) {},
+      ),
+    );
+  });
 
   Future<void> saveWithoutSync(Passport passport) =>
       _exclusive(() => _write(passport, enqueueSync: false));

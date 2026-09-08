@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../cognition/cognitive_record.dart';
 import '../cognition/record_store.dart';
@@ -152,6 +153,19 @@ class _CaregiverDashboardScreenState extends State<CaregiverDashboardScreen> {
     }
   }
 
+  Future<void> _copySyncId() async {
+    final syncUid = _data?.syncUid;
+    if (syncUid == null || syncUid.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: syncUid));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Link code copied. Paste it into the web dashboard.'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -173,6 +187,7 @@ class _CaregiverDashboardScreenState extends State<CaregiverDashboardScreen> {
             syncing: _syncing,
             onToggleSync: _toggleSync,
             onSyncNow: _syncNow,
+            onCopySyncId: _copySyncId,
           ),
   );
 }
@@ -242,12 +257,14 @@ class _DashboardBody extends StatelessWidget {
     required this.syncing,
     required this.onToggleSync,
     required this.onSyncNow,
+    required this.onCopySyncId,
   });
 
   final _DashboardData data;
   final bool syncing;
   final ValueChanged<bool> onToggleSync;
   final VoidCallback onSyncNow;
+  final VoidCallback onCopySyncId;
 
   @override
   Widget build(BuildContext context) {
@@ -320,12 +337,29 @@ class _DashboardBody extends StatelessWidget {
                 ),
                 if (data.syncEnabled) ...[
                   const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SelectableText(
+                          'Link code: ${data.syncUid ?? "Enable sync to create one"}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade800,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: syncing || data.syncUid == null
+                            ? null
+                            : onCopySyncId,
+                        child: const Text('Copy'),
+                      ),
+                    ],
+                  ),
                   Text(
-                    'Sync ID: ${data.syncUid ?? "Anonymous session"}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade700,
-                    ),
+                    'Use this exact code in the caretaker web dashboard.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
                   ),
                   const SizedBox(height: 4),
                   Text(
