@@ -23,6 +23,7 @@ class MainActivity : FlutterActivity() {
     private var launcherChannel: MethodChannel? = null
     private var speechChannel: MethodChannel? = null
     private var speechRecognizer: SpeechRecognizer? = null
+    private var pendingMicrophoneResult: MethodChannel.Result? = null
     private var textToSpeech: TextToSpeech? = null
     private var textToSpeechReady = false
     private var pendingSpeech: MethodChannel.Result? = null
@@ -159,6 +160,13 @@ class MainActivity : FlutterActivity() {
                 "start" -> {
                     if (!SpeechRecognizer.isRecognitionAvailable(this)) {
                         result.error("SPEECH_UNAVAILABLE", "Google speech recognition is unavailable on this phone", null)
+                    } else if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                        if (pendingMicrophoneResult != null) {
+                            result.error("MICROPHONE_PERMISSION_PENDING", "Waiting for microphone permission", null)
+                        } else {
+                            pendingMicrophoneResult = result
+                            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), MICROPHONE_PERMISSION_REQUEST)
+                        }
                     } else {
                         startGoogleSpeechRecognition()
                         result.success(null)
@@ -209,6 +217,27 @@ class MainActivity : FlutterActivity() {
                     result.error("REMINDER_UNAVAILABLE", "Android could not set the medicine reminder", null)
                 }
             }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != MICROPHONE_PERMISSION_REQUEST) return
+        val result = pendingMicrophoneResult ?: return
+        pendingMicrophoneResult = null
+        if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            startGoogleSpeechRecognition()
+            result.success(null)
+        } else {
+            result.error(
+                "MICROPHONE_PERMISSION_DENIED",
+                "Microphone permission is required for voice input",
+                null,
+            )
+        }
     }
 
     private fun cancelMedicineReminders() {
@@ -294,6 +323,10 @@ class MainActivity : FlutterActivity() {
         textToSpeech?.shutdown()
         textToSpeech = null
         super.onDestroy()
+    }
+
+    companion object {
+        private const val MICROPHONE_PERMISSION_REQUEST = 203
     }
 }
 
