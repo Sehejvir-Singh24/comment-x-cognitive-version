@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../memory_passport/passport.dart';
+import '../context/action_context.dart';
 import '../medicine/medicine_store.dart';
 import '../medicine/reminder_bridge.dart';
 import '../voice/speech_service.dart';
@@ -58,6 +61,11 @@ class _MyDayScreenState extends State<MyDayScreen> {
     if (mounted) {
       setState(() => _completed = {..._completed, id});
     }
+    unawaited(ActionContext.log(
+      'DAY_ACTION',
+      source: 'my_day',
+      action: 'confirmed a task',
+    ).catchError((Object _) {}));
   }
 
   Future<void> _readDayAloud(List<_DayItem> items) async {
@@ -65,7 +73,9 @@ class _MyDayScreenState extends State<MyDayScreen> {
       await _speech.speak('You do not have any routines scheduled for today.');
       return;
     }
-    final buffer = StringBuffer('Hello ${widget.passport.name}. Here is your schedule for today: ');
+    final buffer = StringBuffer(
+      'Hello ${widget.passport.name}. Here is your schedule for today: ',
+    );
     for (final item in items) {
       final timeText = item.time.isNotEmpty ? 'at ${item.time}' : '';
       buffer.write('${item.name} $timeText. ');
@@ -116,7 +126,8 @@ class _MyDayScreenState extends State<MyDayScreen> {
       if (_completed.contains(item.id)) continue;
       final parts = item.time.split(':');
       if (parts.length == 2) {
-        final itemMinutes = (int.tryParse(parts[0]) ?? 0) * 60 + (int.tryParse(parts[1]) ?? 0);
+        final itemMinutes =
+            (int.tryParse(parts[0]) ?? 0) * 60 + (int.tryParse(parts[1]) ?? 0);
         if (itemMinutes >= currentMinutes - 30) {
           return item;
         }
@@ -135,7 +146,9 @@ class _MyDayScreenState extends State<MyDayScreen> {
     if (lower.contains('breakfast') || lower.contains('tea')) {
       return Icons.free_breakfast_outlined;
     }
-    if (lower.contains('lunch') || lower.contains('dinner') || lower.contains('meal')) {
+    if (lower.contains('lunch') ||
+        lower.contains('dinner') ||
+        lower.contains('meal')) {
       return Icons.restaurant_outlined;
     }
     if (lower.contains('walk') || lower.contains('exercise')) {
@@ -144,10 +157,14 @@ class _MyDayScreenState extends State<MyDayScreen> {
     if (lower.contains('garden') || lower.contains('plant')) {
       return Icons.yard_outlined;
     }
-    if (lower.contains('call') || lower.contains('visit') || lower.contains('family')) {
+    if (lower.contains('call') ||
+        lower.contains('visit') ||
+        lower.contains('family')) {
       return Icons.people_outline;
     }
-    if (lower.contains('sleep') || lower.contains('bed') || lower.contains('rest')) {
+    if (lower.contains('sleep') ||
+        lower.contains('bed') ||
+        lower.contains('rest')) {
       return Icons.bedtime_outlined;
     }
     return Icons.schedule_rounded;
@@ -208,7 +225,9 @@ class _MyDayScreenState extends State<MyDayScreen> {
                             width: 64,
                             height: 64,
                             child: CircularProgressIndicator(
-                              value: total == 0 ? 0 : (done / total).clamp(0.0, 1.0),
+                              value: total == 0
+                                  ? 0
+                                  : (done / total).clamp(0.0, 1.0),
                               strokeWidth: 6,
                               backgroundColor: Colors.white24,
                               valueColor: const AlwaysStoppedAnimation<Color>(
@@ -217,7 +236,9 @@ class _MyDayScreenState extends State<MyDayScreen> {
                             ),
                           ),
                           Text(
-                            total == 0 ? '0%' : '${((done / total) * 100).round()}%',
+                            total == 0
+                                ? '0%'
+                                : '${((done / total) * 100).round()}%',
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -419,12 +440,13 @@ class _TimelineItemRow extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: (isCompleted
-                                    ? const Color(0xFF10B981)
-                                    : isNextUp
-                                    ? const Color(0xFF0284C7)
-                                    : const Color(0xFF185A49))
-                                .withOpacity(0.12),
+                            color:
+                                (isCompleted
+                                        ? const Color(0xFF10B981)
+                                        : isNextUp
+                                        ? const Color(0xFF0284C7)
+                                        : const Color(0xFF185A49))
+                                    .withOpacity(0.12),
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: Icon(
@@ -479,7 +501,9 @@ class _TimelineItemRow extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                item.time.isNotEmpty ? item.time : 'Flexible time',
+                                item.time.isNotEmpty
+                                    ? item.time
+                                    : 'Flexible time',
                                 style: TextStyle(
                                   fontSize: 16,
                                   color: isCompleted

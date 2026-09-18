@@ -1,4 +1,5 @@
 import '../sync/sync_service.dart';
+import '../context/action_context.dart';
 
 import 'dart:async';
 
@@ -36,6 +37,7 @@ class TalkScreen extends StatefulWidget {
   final SaathiCompanionService? service;
   final SpeechService? speech;
   final bool startListening;
+
   /// When provided, this message is shown as Saathi's first line and spoken
   /// aloud before listening starts (used for check-in prompts).
   final String? openingMessage;
@@ -78,7 +80,8 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
     }
 
     // Initial greeting or check-in question from Saathi
-    final greeting = widget.openingMessage ??
+    final greeting =
+        widget.openingMessage ??
         'Hello ${widget.passport.name}. I am Saathi, your companion. How can I help you today?';
     _messages.add(
       CompanionMessage(
@@ -116,6 +119,13 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
   Future<void> _sendMessage(String text) async {
     final cleanText = text.trim();
     if (cleanText.isEmpty || _loading) return;
+    unawaited(
+      ActionContext.log(
+        'VOICE_QUERY',
+        source: 'saathi',
+        action: 'asked Saathi',
+      ).catchError((Object _) {}),
+    );
     final requestVoiceEpoch = _voiceEpoch;
 
     _controller.clear();
@@ -159,7 +169,6 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
         try {
           await _speech!.speak(reply);
         } catch (_) {
-          _endVoice();
           if (mounted) {
             _notice('I could not read that aloud. Your reply is on screen.');
           }
@@ -274,6 +283,14 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
       final command = DeviceCommandParser.parse(commandText, apps);
       if (command?.type == DeviceCommandType.app) {
         await bridge.openApp(command!.app!.packageName);
+        unawaited(
+          ActionContext.log(
+            'APP_OPEN',
+            source: 'voice',
+            appPackage: command.app!.packageName,
+            appName: command.app!.label,
+          ).catchError((Object _) {}),
+        );
         return 'Opening ${command.app!.label}.';
       }
       // Keep an unrecognised device command local as well. Gemini should not
@@ -347,17 +364,20 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
       final text = await _speech!.finalTranscript();
       if (!mounted || !_foreground || epoch != _voiceEpoch) return;
       setState(() => _listening = false);
-      if (text.trim().isEmpty) {
+      final candidate = text.trim().isNotEmpty
+          ? text.trim()
+          : _controller.text.trim();
+      if (candidate.isEmpty) {
         _endVoice();
         _notice(
           'Conversation paused. Tap Start voice conversation when you’re ready.',
         );
       } else if (RegExp(
         r'^(stop|stop listening|stop talking|end conversation)[.!]?$',
-      ).hasMatch(text.trim().toLowerCase())) {
+      ).hasMatch(candidate.toLowerCase())) {
         _endVoice();
       } else {
-        await _sendMessage(text);
+        await _sendMessage(candidate);
       }
     } catch (_) {
       if (mounted) {
@@ -410,7 +430,7 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
       builder: (context) => AlertDialog(
         title: const Text('Online Saathi — caregiver setup'),
         content: const Text(
-          'When enabled, your request and relevant saved facts are sent to Google Gemini. Audio stays on this phone. General questions do not include your Memory Passport. You can turn this off at any time. Gemini may make mistakes.',
+          'When enabled, your request and relevant saved facts are sent to Google AI services. Audio stays on this phone. General questions do not include your Memory Passport. You can turn this off at any time. AI responses may make mistakes.',
         ),
         actions: [
           TextButton(
@@ -555,7 +575,7 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
                 mode == CompanionMode.checking
                     ? 'Saathi is thinking…'
                     : mode == CompanionMode.online
-                    ? 'Gemini Saathi'
+                    ? 'Saathi Online'
                     : 'Saathi',
               ),
             ),
@@ -563,8 +583,8 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
               onPressed: _onlineSettings,
               child: Text(
                 _consent
-                    ? 'Gemini replies allowed — change'
-                    : 'Enable Gemini — caregiver settings',
+                    ? 'Online replies allowed — change'
+                    : 'Enable online replies — caregiver settings',
               ),
             ),
             NebulaVisualizer(
@@ -578,7 +598,7 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
             const Padding(
               padding: EdgeInsets.fromLTRB(24, 4, 24, 0),
               child: Text(
-                'Gemini answers questions. Google speech is used for voice input.',
+                'Saathi answers questions online. Google speech is used for voice input.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12),
               ),

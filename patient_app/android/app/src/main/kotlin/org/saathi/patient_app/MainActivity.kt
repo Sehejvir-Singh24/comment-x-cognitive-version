@@ -1,7 +1,12 @@
 package org.saathi.patient_app
 
 import android.app.role.RoleManager
+import android.app.AppOpsManager
+import android.app.NotificationManager
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
 import android.Manifest
+import android.content.ComponentName
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
@@ -14,10 +19,12 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.os.Bundle
+import android.util.Log
 import java.util.Locale
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import org.json.JSONArray
 
 class MainActivity : FlutterActivity() {
     private var launcherChannel: MethodChannel? = null
@@ -29,6 +36,18 @@ class MainActivity : FlutterActivity() {
     private var pendingSpeech: MethodChannel.Result? = null
     private var utteranceNumber = 0
     private var activeUtterance = ""
+    private var pendingSharedText: String? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        receiveShare(intent)
+    }
+
+    private fun receiveShare(incoming: Intent?) {
+        if (incoming?.action == Intent.ACTION_SEND && incoming.type == "text/plain") {
+            pendingSharedText = incoming.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.take(4096)
+        }
+    }
 
     private fun finishSpeech(id: String, failed: Boolean = false) {
         runOnUiThread {
@@ -53,6 +72,8 @@ class MainActivity : FlutterActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
+        receiveShare(intent)
         if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_HOME)) {
             launcherChannel?.invokeMethod("homePressed", null)
         }
@@ -64,6 +85,57 @@ class MainActivity : FlutterActivity() {
         launcherChannel?.setMethodCallHandler { call, result ->
                 try {
                     when (call.method) {
+                        "usageAccessGranted" -> result.success(usageAccessGranted())
+                        "openUsageAccessSettings" -> {
+                            startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                            result.success(null)
+                        }
+                        "recentUsage" -> result.success(recentUsage())
+                        "notificationAccessGranted" -> {
+                            val manager = getSystemService(NotificationManager::class.java)
+                            result.success(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1 &&
+                                manager.isNotificationListenerAccessGranted(
+                                    ComponentName(this, SaathiNotificationListener::class.java)))
+                        }
+                        "openNotificationAccessSettings" -> {
+                            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                            result.success(null)
+                        }
+                        "setNotificationCapture" -> {
+                            val enabled = call.argument<Boolean>("enabled") == true
+                            getSharedPreferences("saathi_notification_context", MODE_PRIVATE).edit().apply {
+                                putBoolean("enabled", enabled)
+                                if (!enabled) remove("items")
+                            }.apply()
+                            result.success(null)
+                        }
+                        "notificationPreviews" -> {
+                            val prefs = getSharedPreferences("saathi_notification_context", MODE_PRIVATE)
+                            val values = if (prefs.getBoolean("enabled", false))
+                                JSONArray(prefs.getString("items", "[]")) else JSONArray()
+                            result.success((0 until values.length()).mapNotNull { index ->
+                                values.optJSONObject(index)?.let { item -> mapOf(
+                                    "timestamp" to item.optLong("timestamp"),
+                                    "packageName" to item.optString("packageName"),
+                                    "sender" to item.optString("sender"),
+                                    "preview" to item.optString("preview"),
+                                ) }
+                            })
+                        }
+                        "consumeShare" -> {
+                            val text = pendingSharedText
+                            pendingSharedText = null
+                            result.success(text)
+                        }
+                        "openWebLink" -> {
+                            val uri = android.net.Uri.parse(call.argument<String>("url").orEmpty())
+                            if (uri.scheme != "https" && uri.scheme != "http") {
+                                result.error("INVALID_LINK", "Only web links can be reopened", null)
+                            } else {
+                                startActivity(Intent(Intent.ACTION_VIEW, uri))
+                                result.success(null)
+                            }
+                        }
                         "hasValidatedInternet" -> {
                             val manager = getSystemService(ConnectivityManager::class.java)
                             val caps = manager.getNetworkCapabilities(manager.activeNetwork)
@@ -219,6 +291,36 @@ class MainActivity : FlutterActivity() {
             }
     }
 
+    private fun usageAccessGranted(): Boolean {
+        val ops = getSystemService(AppOpsManager::class.java)
+        return ops.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), packageName) == AppOpsManager.MODE_ALLOWED
+    }
+
+    private fun recentUsage(): List<Map<String, Any>> {
+        if (!usageAccessGranted()) return emptyList()
+        val now = System.currentTimeMillis()
+        val manager = getSystemService(UsageStatsManager::class.java)
+        val events = manager.queryEvents(now - 2 * 60 * 60 * 1000L, now)
+        val event = UsageEvents.Event()
+        val observed = mutableListOf<Map<String, Any>>()
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            val foreground = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                event.eventType == UsageEvents.Event.ACTIVITY_RESUMED
+            else event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND
+            val observedPackage = event.packageName ?: continue
+            if (!foreground || observedPackage == packageName ||
+                observedPackage == "com.android.systemui" ||
+                packageManager.getLaunchIntentForPackage(observedPackage) == null) continue
+            val label = try {
+                packageManager.getApplicationLabel(packageManager.getApplicationInfo(observedPackage, 0)).toString()
+            } catch (_: Exception) { observedPackage }
+            observed.add(mapOf("timestamp" to event.timeStamp,
+                "packageName" to observedPackage, "appName" to label))
+        }
+        return observed.takeLast(50)
+    }
+
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -250,41 +352,77 @@ class MainActivity : FlutterActivity() {
         destroySpeechRecognizer()
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
         speechRecognizer?.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) = Unit
-            override fun onBeginningOfSpeech() = Unit
+            override fun onReadyForSpeech(params: Bundle?) {
+                Log.d("SaathiSpeech", "onReadyForSpeech")
+            }
+            override fun onBeginningOfSpeech() {
+                Log.d("SaathiSpeech", "onBeginningOfSpeech")
+            }
             override fun onRmsChanged(rmsdB: Float) = Unit
             override fun onBufferReceived(buffer: ByteArray?) = Unit
-            override fun onEndOfSpeech() = Unit
+            override fun onEndOfSpeech() {
+                Log.d("SaathiSpeech", "onEndOfSpeech")
+            }
             override fun onError(error: Int) {
-                speechChannel?.invokeMethod("error", mapOf("code" to error))
-                destroySpeechRecognizer()
+                Log.w("SaathiSpeech", "onError: code=$error")
+                runOnUiThread {
+                    speechChannel?.invokeMethod("error", mapOf("code" to error))
+                    destroySpeechRecognizer()
+                }
             }
             override fun onResults(results: Bundle?) {
-                deliverSpeech("final", results)
-                destroySpeechRecognizer()
+                Log.d("SaathiSpeech", "onResults received")
+                runOnUiThread {
+                    deliverSpeech("final", results)
+                    destroySpeechRecognizer()
+                }
             }
-            override fun onPartialResults(partialResults: Bundle?) = deliverSpeech("partial", partialResults)
+            override fun onPartialResults(partialResults: Bundle?) {
+                runOnUiThread {
+                    deliverSpeech("partial", partialResults)
+                }
+            }
             override fun onEvent(eventType: Int, params: Bundle?) = Unit
         })
+
+        val defaultLocale = Locale.getDefault()
+        val languageTag = if (defaultLocale.toLanguageTag().isNotBlank()) defaultLocale.toLanguageTag() else "en-US"
+        Log.d("SaathiSpeech", "startGoogleSpeechRecognition: locale=$languageTag")
+
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-GB")
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, languageTag)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, languageTag)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 3000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 2000L)
+            putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf("en-IN", "en-US", "en-GB", "hi-IN"))
         }
         speechRecognizer?.startListening(intent)
     }
 
     private fun deliverSpeech(event: String, results: Bundle?) {
-        val texts = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
-        speechChannel?.invokeMethod(event, texts.firstOrNull() ?: "")
+        val texts = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            ?: results?.getStringArrayList("results_recognition")
+            ?: emptyList<String>()
+        val speechText = texts.firstOrNull().orEmpty()
+        Log.d("SaathiSpeech", "deliverSpeech: event=$event, text='$speechText', all=$texts")
+        runOnUiThread {
+            speechChannel?.invokeMethod(event, speechText)
+        }
     }
 
     private fun destroySpeechRecognizer() {
-        speechRecognizer?.destroy()
-        speechRecognizer = null
+        runOnUiThread {
+            try {
+                speechRecognizer?.destroy()
+            } catch (e: Exception) {
+                Log.w("SaathiSpeech", "destroySpeechRecognizer error: ${e.message}")
+            }
+            speechRecognizer = null
+        }
     }
 
     private fun speak(text: String, result: MethodChannel.Result) {
@@ -298,13 +436,22 @@ class MainActivity : FlutterActivity() {
         activeUtterance = id
         pendingSpeech = result
         if (voice != null && textToSpeechReady) {
+            val defaultLocale = Locale.getDefault()
+            val langResult = voice.setLanguage(defaultLocale)
+            if (langResult == TextToSpeech.LANG_MISSING_DATA || langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+                voice.language = Locale.US
+            }
             if (voice.speak(text, TextToSpeech.QUEUE_FLUSH, null, id) == TextToSpeech.ERROR) finishSpeech(id, true)
             return
         }
         textToSpeech = TextToSpeech(applicationContext) { status ->
             textToSpeechReady = status == TextToSpeech.SUCCESS
             if (textToSpeechReady) {
-                textToSpeech?.language = Locale.UK
+                val defaultLocale = Locale.getDefault()
+                val langResult = textToSpeech?.setLanguage(defaultLocale)
+                if (langResult == TextToSpeech.LANG_MISSING_DATA || langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    textToSpeech?.language = Locale.US
+                }
                 textToSpeech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) = Unit
                     override fun onDone(utteranceId: String?) { finishSpeech(utteranceId.orEmpty()) }

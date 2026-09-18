@@ -182,13 +182,21 @@
           </div>
           <div class="stat-body">
             <span class="stat-label">Medicine Adherence</span>
-            <span class="stat-value">94%</span>
-            <span class="stat-delta up">↑ All today done</span>
+            <span class="stat-value" id="overviewMedicineValue">94%</span>
+            <span class="stat-delta up" id="overviewMedicineStatus">↑ All today done</span>
           </div>
         </div>
       </div>
 
       <!-- Two column layout -->
+      <div class="card full-width" id="dailyNarrativeCard">
+        <div class="card-header">
+          <h2 class="card-title">Today with Saathi</h2>
+          <span class="card-tag">Shared by patient</span>
+        </div>
+        <div id="dailyNarrativeText" class="daily-narrative-text">No summary shared from the phone today.</div>
+      </div>
+
       <div class="two-col">
 
         <!-- Weekly trend chart -->
@@ -307,9 +315,9 @@
         <div class="card">
           <div class="card-header">
             <h2 class="card-title">Today's Medicines</h2>
-            <span class="card-tag green-tag">2 of 2 Done</span>
+            <span class="card-tag green-tag" id="medicineDoneCount">2 of 2 Done</span>
           </div>
-          <ul class="medicine-list">
+          <ul class="medicine-list" id="medicineList">
             <li class="med-item done">
               <div class="med-icon">💊</div>
               <div class="med-body">
@@ -332,7 +340,7 @@
         <div class="card">
           <div class="card-header">
             <h2 class="card-title">Daily Routine</h2>
-            <span class="card-tag">3 of 4 Done</span>
+            <span class="card-tag" id="routineDoneCount">3 of 4 Done</span>
           </div>
           <ul class="routine-list" id="routineList">
             <!-- Rendered by JS -->

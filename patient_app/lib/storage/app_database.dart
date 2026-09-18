@@ -12,7 +12,7 @@ import '../cognition/cognitive_record.dart';
 class AppDatabase extends GeneratedDatabase {
   AppDatabase(File file) : super(NativeDatabase.createInBackground(file));
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
   @override
   Iterable<TableInfo<Table, Object?>> get allTables => const [];
   @override
@@ -35,10 +35,12 @@ class AppDatabase extends GeneratedDatabase {
         'CREATE TABLE assistant_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
       );
       await _createDailyCompletions();
+      await _createActionEvents();
     },
     onUpgrade: (_, from, to) async {
       if (from < 2) await _createOutbox();
       if (from < 3) await _createDailyCompletions();
+      if (from < 4) await _createActionEvents();
     },
   );
 
@@ -48,6 +50,65 @@ class AppDatabase extends GeneratedDatabase {
   Future<void> _createDailyCompletions() => customStatement(
     'CREATE TABLE daily_completions (event_id TEXT NOT NULL, day TEXT NOT NULL, completed_at INTEGER NOT NULL, PRIMARY KEY(event_id, day))',
   );
+  Future<void> _createActionEvents() async {
+    await customStatement(
+      'CREATE TABLE action_events (id TEXT PRIMARY KEY, timestamp INTEGER NOT NULL, '
+      'event_type TEXT NOT NULL, source TEXT NOT NULL, app_package TEXT, '
+      'app_name TEXT, action TEXT, intent TEXT)',
+    );
+    await customStatement(
+      'CREATE INDEX action_events_recent ON action_events(timestamp DESC)',
+    );
+  }
+
+  Future<void> logActionEvent({
+    required String id,
+    required int timestamp,
+    required String eventType,
+    required String source,
+    String? appPackage,
+    String? appName,
+    String? action,
+    String? intent,
+  }) => transaction(() async {
+    await customStatement(
+      'INSERT OR IGNORE INTO action_events VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, timestamp, eventType, source, appPackage, appName, action, intent],
+    );
+    // Keep a short local history. Action events are never queued for cloud sync.
+    await customStatement('DELETE FROM action_events WHERE timestamp < ?', [
+      DateTime.now().subtract(const Duration(days: 30)).millisecondsSinceEpoch,
+    ]);
+    await customStatement(
+      'DELETE FROM action_events WHERE id NOT IN '
+      '(SELECT id FROM action_events ORDER BY timestamp DESC LIMIT 500)',
+    );
+  });
+
+  Future<List<Map<String, dynamic>>> recentActionEvents({
+    int limit = 20,
+  }) async {
+    final rows = await customSelect(
+      'SELECT id, timestamp, event_type, source, app_package, app_name, '
+      'action, intent FROM action_events ORDER BY timestamp DESC LIMIT ?',
+      variables: [Variable(limit)],
+    ).get();
+    return rows
+        .map(
+          (row) => <String, dynamic>{
+            'id': row.read<String>('id'),
+            'timestamp': row.read<int>('timestamp'),
+            'eventType': row.read<String>('event_type'),
+            'source': row.read<String>('source'),
+            'appPackage': row.readNullable<String>('app_package'),
+            'appName': row.readNullable<String>('app_name'),
+            'action': row.readNullable<String>('action'),
+            'intent': row.readNullable<String>('intent'),
+          },
+        )
+        .toList();
+  }
+
   Future<void> enqueue(String kind, String id, Map<String, dynamic> payload) =>
       customStatement(
         'INSERT INTO sync_outbox(kind, entity_id, payload) VALUES (?, ?, ?)',

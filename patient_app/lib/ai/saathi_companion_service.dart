@@ -78,9 +78,12 @@ class CompanionRouter {
 
   static List<MemoryEntry> relevant(String text, Passport passport) {
     final t = text.toLowerCase().trim();
-    final isAffirmationOrQuestion = RegExp(
-      r'^(yes|yeah|yep|sure|ok|okay|alright|yes please|go ahead|tell me|ask me)[.!]?$',
-    ).hasMatch(t) || t.contains('memory question') || t.contains('quiz');
+    final isAffirmationOrQuestion =
+        RegExp(
+          r'^(yes|yeah|yep|sure|ok|okay|alright|yes please|go ahead|tell me|ask me)[.!]?$',
+        ).hasMatch(t) ||
+        t.contains('memory question') ||
+        t.contains('quiz');
 
     final named = passport.entries
         .where(
@@ -170,45 +173,96 @@ class CompanionRouter {
     if (medical(t)) return const CompanionReply(medicalReply);
 
     // ── Instant time / date answers (no Gemini needed) ────────────────────
-    if (RegExp(r'\bwhat.{0,10}time\b|\bthe time\b|\bwhat time is it\b').hasMatch(t)) {
+    if (RegExp(r'\bwhat.{0,10}time\b|\bthe time\b|\bwhat time is it\b')
+        .hasMatch(t)) {
       final now = DateTime.now();
       final h = now.hour % 12 == 0 ? 12 : now.hour % 12;
       final m = now.minute.toString().padLeft(2, '0');
-      final ampm = now.hour < 12 ? 'in the morning' : now.hour < 17 ? 'in the afternoon' : 'in the evening';
+      final ampm = now.hour < 12
+          ? 'in the morning'
+          : now.hour < 17
+          ? 'in the afternoon'
+          : 'in the evening';
       return CompanionReply('It is $h:$m $ampm right now.');
     }
-    if (RegExp(r'\bwhat.{0,10}day\b|\btoday.{0,10}date\b|\bwhat is today\b|\bwhat date\b').hasMatch(t)) {
+    if (RegExp(
+      r'\bwhat.{0,10}day\b|\btoday.{0,10}date\b|\bwhat is today\b|\bwhat date\b',
+    ).hasMatch(t)) {
       final now = DateTime.now();
-      const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-      const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-      return CompanionReply('Today is ${days[now.weekday - 1]}, ${now.day} ${months[now.month - 1]} ${now.year}.');
+      const days = [
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday',
+        'Sunday',
+      ];
+      const months = [
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
+      ];
+      return CompanionReply(
+        'Today is ${days[now.weekday - 1]}, ${now.day} ${months[now.month - 1]} ${now.year}.',
+      );
     }
 
     // ── Medicine summary ──────────────────────────────────────────────────
-    if (RegExp(r'\b(medicine|medicines|medication|medications|pill|pills|tablet|tablets|my meds)\b').hasMatch(t) &&
+    if (RegExp(
+          r'\b(medicine|medicines|medication|medications|pill|pills|tablet|tablets|my meds)\b',
+        ).hasMatch(t) &&
         RegExp(r'\b(read|what|tell|list|show|remind)\b').hasMatch(t)) {
-      final meds = passport.entries.where((e) => e.kind == MemoryKind.medicine).toList();
+      final meds = passport.entries
+          .where((e) => e.kind == MemoryKind.medicine)
+          .toList();
       if (meds.isEmpty) {
-        return const CompanionReply('I do not see any medicines saved in your Memory Passport yet.');
+        return const CompanionReply(
+          'I do not see any medicines saved in your Memory Passport yet.',
+        );
       }
-      final list = meds.map((e) {
-        final time = e.values['time']?.isNotEmpty == true ? ' at ${e.values['time']}' : '';
-        final notes = e.values['notes']?.isNotEmpty == true ? ' — ${e.values['notes']}' : '';
-        return '${e.name}$time$notes';
-      }).join('. ');
+      final list = meds
+          .map((e) {
+            final time = e.values['time']?.isNotEmpty == true
+                ? ' at ${e.values['time']}'
+                : '';
+            final notes = e.values['notes']?.isNotEmpty == true
+                ? ' — ${e.values['notes']}'
+                : '';
+            return '${e.name}$time$notes';
+          })
+          .join('. ');
       return CompanionReply('Your saved medicines are: $list.');
     }
 
     // ── Routine summary ───────────────────────────────────────────────────
-    if (RegExp(r'\b(routine|schedule|what.{0,10}next|my day|agenda|plan)\b').hasMatch(t)) {
-      final routines = passport.entries.where((e) => e.kind == MemoryKind.routine).toList();
+    if (RegExp(r'\b(routine|schedule|what.{0,10}next|my day|agenda|plan)\b')
+        .hasMatch(t)) {
+      final routines = passport.entries
+          .where((e) => e.kind == MemoryKind.routine)
+          .toList();
       if (routines.isEmpty) {
-        return const CompanionReply('I do not see any routine saved in your Memory Passport yet.');
+        return const CompanionReply(
+          'I do not see any routine saved in your Memory Passport yet.',
+        );
       }
-      final list = routines.map((e) {
-        final time = e.values['time']?.isNotEmpty == true ? ' at ${e.values['time']}' : '';
-        return '${e.name}$time';
-      }).join('. ');
+      final list = routines
+          .map((e) {
+            final time = e.values['time']?.isNotEmpty == true
+                ? ' at ${e.values['time']}'
+                : '';
+            return '${e.name}$time';
+          })
+          .join('. ');
       return CompanionReply('Here is your routine: $list.');
     }
 
@@ -292,7 +346,7 @@ class CompanionRouter {
     if (!consent) {
       mode.value = CompanionMode.unavailable;
       return const CompanionReply(
-        'A caregiver needs to enable Gemini before I can answer questions.',
+        'A caregiver needs to enable online replies before I can answer questions.',
       );
     }
     final generation = _generation;
@@ -321,7 +375,7 @@ class CompanionRouter {
       }
       mode.value = CompanionMode.unavailable;
       return const CompanionReply(
-        'Gemini is unavailable right now. Please check the internet connection and try again.',
+        'Saathi online is unavailable right now. Please check the internet connection and try again.',
       );
     }
   }
@@ -398,8 +452,8 @@ class GeminiConversation {
     GeminiGenerate? generate,
     String? userName,
     String? openingMessage,
-  })  : _customGenerate = generate,
-        _userName = userName ?? '' {
+  }) : _customGenerate = generate,
+       _userName = userName ?? '' {
     if (openingMessage != null && openingMessage.isNotEmpty) {
       _history.add(Content.text(jsonEncode({'request': 'Hello Saathi'})));
       _history.add(Content.model([TextPart(openingMessage)]));
@@ -440,7 +494,8 @@ class GeminiConversation {
       'General conversation and everyday explanations are welcome and encouraged.';
 
   // Keep a static fallback for contexts that don't have a name yet.
-  static const instruction = 'You are Saathi, a warm and friendly voice companion.\n'
+  static const instruction =
+      'You are Saathi, a warm and friendly voice companion.\n'
       'Speak warmly and naturally using everyday English and contractions.\n'
       'Respond to what they actually said and remember the conversation.\n'
       'No markdown, bullet lists, JSON, or robotic acknowledgements.\n'
@@ -547,8 +602,10 @@ class GeminiConversation {
 
       for (final c in contents) {
         final role = (c.role == 'model') ? 'assistant' : 'user';
-        final text =
-            c.parts.whereType<TextPart>().map((p) => p.text).join('\n');
+        final text = c.parts
+            .whereType<TextPart>()
+            .map((p) => p.text)
+            .join('\n');
         if (text.isNotEmpty) {
           messages.add({'role': role, 'content': text});
         }
@@ -562,8 +619,9 @@ class GeminiConversation {
       });
       request.add(utf8.encode(body));
 
-      final response =
-          await request.close().timeout(const Duration(seconds: 6));
+      final response = await request.close().timeout(
+        const Duration(seconds: 6),
+      );
       if (response.statusCode != 200) {
         final err = await response.transform(utf8.decoder).join();
         if (kDebugMode) {
@@ -619,7 +677,8 @@ class GeminiConversation {
       return await model.generateContent(contents);
     } catch (e) {
       final errStr = e.toString();
-      final isQuotaOrUnavailable = e.runtimeType.toString().contains('Quota') ||
+      final isQuotaOrUnavailable =
+          e.runtimeType.toString().contains('Quota') ||
           errStr.contains('Quota') ||
           errStr.contains('429') ||
           errStr.contains('503') ||

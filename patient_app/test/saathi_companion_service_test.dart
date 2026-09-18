@@ -38,7 +38,7 @@ void main() {
       cloud: (_, _) async => throw StateError('secret'),
     )..consent = true;
     final reply = await router.reply('Tell me about my family', passport);
-    expect(reply.text, contains('Gemini is unavailable'));
+    expect(reply.text, contains('online is unavailable'));
     expect(reply.text, isNot(contains('Rahul')));
     expect(reply.text, isNot(contains('secret')));
     expect(router.mode.value, CompanionMode.unavailable);
@@ -78,7 +78,7 @@ void main() {
         'Tell me about my favourite place',
         saved,
       );
-      expect(reply.text, contains('caregiver needs to enable Gemini'));
+      expect(reply.text, contains('caregiver needs to enable online replies'));
       expect(reply.text, isNot(contains('Kamakhya Temple')));
     },
   );

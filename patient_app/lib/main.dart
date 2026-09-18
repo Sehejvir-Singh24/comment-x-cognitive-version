@@ -5,6 +5,8 @@ import 'sync/sync_service.dart';
 import 'package:flutter/material.dart';
 
 import 'cognition/record_store.dart';
+import 'context/action_context.dart';
+import 'context/context_signals_screen.dart';
 import 'cognition/cognitive_games_screen.dart';
 import 'caregiver/caregiver_dashboard_screen.dart';
 import 'family/family_screen.dart';
@@ -71,6 +73,22 @@ class _LauncherHomeState extends State<LauncherHome>
   int _checkInIndex = 0;
   bool _greeted = false;
   bool _remoteCheckupOpen = false;
+  bool _shareDialogOpen = false;
+  DateTime? _lastHomeLogAt;
+
+  void _logReturnHome() {
+    final now = DateTime.now();
+    if (_lastHomeLogAt != null &&
+        now.difference(_lastHomeLogAt!) < const Duration(seconds: 5)) {
+      return;
+    }
+    _lastHomeLogAt = now;
+    unawaited(
+      ActionContext.log('RETURN_HOME', source: 'launcher')
+          .catchError((Object _) {}),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -81,6 +99,7 @@ class _LauncherHomeState extends State<LauncherHome>
     LauncherBridge.channel.setMethodCallHandler((call) async {
       if (call.method == 'homePressed' && mounted) {
         LauncherBridge.homeRequests.value++;
+        _logReturnHome();
         await WidgetsBinding.instance.endOfFrame;
         if (mounted) {
           Navigator.of(context).popUntil((route) => route.isFirst);
@@ -90,6 +109,9 @@ class _LauncherHomeState extends State<LauncherHome>
     });
     refresh();
     refreshPassport();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_checkSharedLink());
+    });
     unawaited(
       SyncService.startPassportListener(
         onPassportUpdated: (updated) {
@@ -165,6 +187,8 @@ class _LauncherHomeState extends State<LauncherHome>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
     if (_foreground) {
+      unawaited(_checkSharedLink());
+      _logReturnHome();
       refresh();
       _startCheckIns();
       SyncService.pullPassport(
@@ -310,7 +334,78 @@ class _LauncherHomeState extends State<LauncherHome>
                     itemBuilder: (context, index) => ElevatedButton(
                       onPressed: () async {
                         try {
+                          final app = apps[index];
+                          final appLabel = app.label.toLowerCase();
+                          final askPurpose =
+                              appLabel.contains('youtube') ||
+                              appLabel.contains('whatsapp') ||
+                              appLabel.contains('music');
+                          final purpose = askPurpose
+                              ? await showDialog<String>(
+                                  context: context,
+                                  builder: (dialogContext) => AlertDialog(
+                                    title: Text(
+                                      'What would you like to do in ${app.label}?',
+                                    ),
+                                    content: const Text(
+                                      'Choose a reason if you remember. Saathi can remind you later.',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(dialogContext, ''),
+                                        child: const Text('Just open it'),
+                                      ),
+                                      if (appLabel.contains('whatsapp'))
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(
+                                            dialogContext,
+                                            'send a message',
+                                          ),
+                                          child: const Text('Send a message'),
+                                        ),
+                                      if (appLabel.contains('youtube'))
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(
+                                            dialogContext,
+                                            'watch an exercise video',
+                                          ),
+                                          child: const Text(
+                                            'Watch exercise video',
+                                          ),
+                                        ),
+                                      if (appLabel.contains('music'))
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(
+                                            dialogContext,
+                                            'listen to music',
+                                          ),
+                                          child: const Text('Listen to music'),
+                                        ),
+                                    ],
+                                  ),
+                                )
+                              : '';
+                          if (purpose == null) return;
+                          if (purpose.isNotEmpty) {
+                            await ActionContext.log(
+                              'APP_INTENT',
+                              source: 'launcher',
+                              appPackage: app.packageName,
+                              appName: app.label,
+                              intent: purpose,
+                            ).catchError((Object _) {});
+                          }
                           await bridge.openApp(apps[index].packageName);
+                          unawaited(
+                            ActionContext.log(
+                              'APP_OPEN',
+                              source: 'launcher',
+                              appPackage: app.packageName,
+                              appName: app.label,
+                              intent: purpose.isEmpty ? null : purpose,
+                            ).catchError((Object _) {}),
+                          );
                         } catch (_) {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -326,6 +421,202 @@ class _LauncherHomeState extends State<LauncherHome>
         },
       ),
     );
+  }
+
+  Future<void> _showContext() async {
+    if (!await ActionContext.enabled()) {
+      if (!mounted) return;
+      final allow = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Let Saathi remember phone actions?'),
+          content: const Text(
+            'Saathi can remember apps you open from this launcher, purposes you choose, and simple My Day actions. This stays on this phone. It does not read messages or record your words. History is kept for up to 30 days or 500 actions. You can turn it off and clear it here.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Not now'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Remember my actions'),
+            ),
+          ],
+        ),
+      );
+      if (allow != true) return;
+      await ActionContext.setEnabled(true);
+    }
+    final events = await ActionContext.recent();
+    final explanation = ActionContext.explain(events);
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Why am I here?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(explanation.text, style: const TextStyle(fontSize: 22)),
+            if (explanation.repeated) ...[
+              const SizedBox(height: 12),
+              Text(
+                'You opened ${explanation.appName} several times recently. Would you like to continue there?',
+              ),
+            ],
+            const SizedBox(height: 20),
+            const Text(
+              'Why Saathi thinks this',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            Text(explanation.evidence),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await ActionContext.setEnabled(false);
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+            },
+            child: const Text('Turn off and clear history'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Stay here'),
+          ),
+          if (explanation.appPackage != null)
+            FilledButton(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                try {
+                  await bridge.openApp(explanation.appPackage!);
+                } catch (_) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('That app could not open.')),
+                    );
+                  }
+                }
+              },
+              child: Text('Take me back to ${explanation.appName}'),
+            ),
+          if (explanation.webLink != null)
+            FilledButton(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                try {
+                  await bridge.openWebLink(explanation.webLink!);
+                } catch (_) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('That link could not open.'),
+                      ),
+                    );
+                  }
+                }
+              },
+              child: const Text('Take me back to the link'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showBreadcrumbs() async {
+    final events = await ActionContext.recent();
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Memory Breadcrumbs')),
+          body: events.isEmpty
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text('No recent actions saved yet.'),
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: events.length,
+                  itemBuilder: (_, index) => ListTile(
+                    leading: const Icon(Icons.history),
+                    title: Text(ActionContext.breadcrumb(events[index])),
+                    subtitle: Text(
+                      '${events[index].timestamp.hour.toString().padLeft(2, '0')}:${events[index].timestamp.minute.toString().padLeft(2, '0')} · Saved on this phone',
+                    ),
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _checkSharedLink() async {
+    if (!mounted || _shareDialogOpen) return;
+    String? shared;
+    try {
+      shared = await bridge.consumeShare();
+    } catch (_) {
+      return;
+    }
+    if (!mounted || shared == null || shared.isEmpty) return;
+    final match = RegExp(r'https?://[^\s]+').firstMatch(shared);
+    final url = match?.group(0)?.replaceAll(RegExp(r'[.,;!?)]+$'), '');
+    if (url == null || Uri.tryParse(url)?.host.isEmpty != false) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Saathi can save web links only. Shared text was not stored.',
+          ),
+        ),
+      );
+      return;
+    }
+    _shareDialogOpen = true;
+    try {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      final enabled = await ActionContext.enabled();
+      if (!mounted) return;
+      final save = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Save this shared link?'),
+          content: Text(
+            'Saathi received this one link:\n$url\n\nIt stays on this phone. Saathi cannot read the message or conversation it came from.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Do not save'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(
+                enabled ? 'Save link' : 'Enable action memory and save',
+              ),
+            ),
+          ],
+        ),
+      );
+      if (save == true) {
+        if (!enabled) {
+          await ActionContext.setEnabled(true);
+        }
+        await ActionContext.log('SHARED_LINK', source: 'share', action: url);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Link saved. Ask “Why am I here?” to reopen it.'),
+            ),
+          );
+        }
+      }
+    } finally {
+      _shareDialogOpen = false;
+    }
   }
 
   @override
@@ -459,6 +750,28 @@ class _LauncherHomeState extends State<LauncherHome>
                   'Say "Open WhatsApp", "Open Maps", or ask Saathi a question.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 17, color: Colors.grey[800]),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () => perform(_showContext),
+                  icon: const Icon(Icons.help_outline, size: 30),
+                  label: const Text('Why am I here?'),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () => perform(_showBreadcrumbs),
+                  icon: const Icon(Icons.history, size: 30),
+                  label: const Text('Memory Breadcrumbs'),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const ContextSignalsScreen(),
+                    ),
+                  ),
+                  icon: const Icon(Icons.phonelink_setup, size: 30),
+                  label: const Text('Optional phone context'),
                 ),
                 const SizedBox(height: 16),
                 OutlinedButton.icon(

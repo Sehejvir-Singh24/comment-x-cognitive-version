@@ -1543,3 +1543,9 @@ body {
 .form-row .form-group {
   flex: 1;
 }
+.daily-narrative-text {
+  white-space: pre-line;
+  padding: 0 24px 24px;
+  line-height: 1.7;
+  font-size: 16px;
+}

@@ -18,32 +18,39 @@ class SpeechService {
   Timer? _limit;
   bool _disposed = false;
   bool _initialized = false;
+  String _lastPartial = '';
 
   Future<void> initialize() async {
     if (_initialized) return;
-    // Remove old Piper/Sherpa assets left by older versions, without touching
-    // the patient's database, photos, or other local data.
-    final support = await getApplicationSupportDirectory();
-    final legacyModels = Directory('${support.path}/assets/models');
-    if (await legacyModels.exists()) await legacyModels.delete(recursive: true);
+    try {
+      final support = await getApplicationSupportDirectory();
+      final legacyModels = Directory('${support.path}/assets/models');
+      if (await legacyModels.exists()) await legacyModels.delete(recursive: true);
+    } catch (_) {}
     _speechChannel.setMethodCallHandler((call) async {
       if (_disposed) return;
       final text = call.arguments is String ? call.arguments as String : '';
       if (call.method == 'partial') {
+        _lastPartial = text;
         transcripts.add(text);
       } else if (call.method == 'final' && _finalResult?.isCompleted == false) {
         _limit?.cancel();
-        _finalResult!.complete(text);
+        final resultText =
+            text.trim().isNotEmpty ? text.trim() : _lastPartial.trim();
+        _finalResult!.complete(resultText);
       } else if (call.method == 'error' && _finalResult?.isCompleted == false) {
         _limit?.cancel();
-        _finalResult!.complete('');
+        _finalResult!.complete(_lastPartial.trim());
       }
     });
     _initialized = true;
   }
 
   Future<void> startListening() async {
-    if (_finalResult?.isCompleted == false || _disposed) return;
+    if (_disposed) return;
+    if (_finalResult?.isCompleted == false) {
+      _finalResult!.complete('');
+    }
     await initialize();
     final available =
         await _speechChannel.invokeMethod<bool>('availability') ?? false;
@@ -53,6 +60,7 @@ class SpeechService {
       );
     }
     await stopSpeaking();
+    _lastPartial = '';
     _finalResult = Completer<String>();
     await _speechChannel.invokeMethod<void>('start');
     _limit = Timer(const Duration(seconds: 30), () {
@@ -77,6 +85,7 @@ class SpeechService {
     await _speechChannel.invokeMethod<void>('cancel');
     if (_finalResult?.isCompleted == false) _finalResult!.complete('');
     _finalResult = null;
+    _lastPartial = '';
   }
 
   Future<void> speak(String text) async {

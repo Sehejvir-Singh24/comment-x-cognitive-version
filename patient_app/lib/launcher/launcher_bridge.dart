@@ -33,4 +33,27 @@ class LauncherBridge {
   Future<void> openMaps() => channel.invokeMethod<void>('openMaps');
   Future<void> openCalendar() => channel.invokeMethod<void>('openCalendar');
   Future<void> openContacts() => channel.invokeMethod<void>('openContacts');
+
+  Future<bool> usageAccessGranted() async =>
+      await channel.invokeMethod<bool>('usageAccessGranted') ?? false;
+  Future<void> openUsageAccessSettings() =>
+      channel.invokeMethod<void>('openUsageAccessSettings');
+  Future<List<Map<String, dynamic>>> recentUsage() async =>
+      (await channel.invokeListMethod<dynamic>('recentUsage') ?? [])
+          .map((value) => Map<String, dynamic>.from(value as Map))
+          .toList();
+  Future<bool> notificationAccessGranted() async =>
+      await channel.invokeMethod<bool>('notificationAccessGranted') ?? false;
+  Future<void> openNotificationAccessSettings() =>
+      channel.invokeMethod<void>('openNotificationAccessSettings');
+  Future<void> setNotificationCapture(bool value) =>
+      channel.invokeMethod<void>('setNotificationCapture', {'enabled': value});
+  Future<List<Map<String, dynamic>>> notificationPreviews() async =>
+      (await channel.invokeListMethod<dynamic>('notificationPreviews') ?? [])
+          .map((value) => Map<String, dynamic>.from(value as Map))
+          .toList();
+  Future<String?> consumeShare() =>
+      channel.invokeMethod<String>('consumeShare');
+  Future<void> openWebLink(String url) =>
+      channel.invokeMethod<void>('openWebLink', {'url': url});
 }

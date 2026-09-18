@@ -7,6 +7,7 @@ import '../medicine/medicine_store.dart';
 import '../medicine/reminder_bridge.dart';
 import '../memory_passport/passport.dart';
 import '../sync/sync_service.dart';
+import '../context/daily_narrative_screen.dart';
 
 /// A local-only view for a family member or caregiver.
 ///
@@ -488,6 +489,18 @@ class _DashboardBody extends StatelessWidget {
               ),
             ),
           ),
+        const SizedBox(height: 20),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.summarize_outlined, size: 32),
+            title: const Text('Today with Saathi', style: TextStyle(fontSize: 20)),
+            subtitle: const Text('Review the local action summary and choose whether to share it.'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const DailyNarrativeScreen()),
+            ),
+          ),
+        ),
       ],
     );
   }

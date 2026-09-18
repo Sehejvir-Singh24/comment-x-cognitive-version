@@ -648,6 +648,80 @@ function syncRoutinesFromPassport() {
     });
     renderTodayList();
   }
+  renderLinkedSchedule();
+}
+
+function renderLinkedSchedule() {
+  if (!currentPatientUid || !isFirebaseOnline) return;
+  const entries = (DEMO.passport?.entries || []).filter(e => e.kind === 'routine' || e.kind === 'medicine');
+  const medicines = entries.filter(e => e.kind === 'medicine' || /medicin/i.test(e.values?.name || ''));
+  const routines = entries.filter(e => !medicines.includes(e));
+  const completed = e => cloudCompletedEventIds.has(e.id);
+  const medicineList = document.getElementById('medicineList');
+  const routineList = document.getElementById('routineList');
+
+  if (medicineList) {
+    medicineList.replaceChildren();
+    medicines.forEach(entry => {
+      const item = document.createElement('li');
+      item.className = `med-item${completed(entry) ? ' done' : ''}`;
+      const icon = document.createElement('div');
+      icon.className = 'med-icon';
+      icon.textContent = '💊';
+      const body = document.createElement('div');
+      body.className = 'med-body';
+      const name = document.createElement('span');
+      name.className = 'med-name';
+      name.textContent = entry.values?.name || 'Medicine';
+      const time = document.createElement('span');
+      time.className = 'med-time';
+      time.textContent = entry.values?.time || 'Time not set';
+      body.append(name, time);
+      const status = document.createElement('div');
+      status.className = `med-status${completed(entry) ? ' done-badge' : ''}`;
+      status.textContent = completed(entry) ? '✓ Confirmed' : '○ Not confirmed';
+      item.append(icon, body, status);
+      medicineList.append(item);
+    });
+    if (!medicines.length) medicineList.textContent = 'No medicines scheduled.';
+  }
+
+  if (routineList) {
+    routineList.replaceChildren();
+    routines.forEach(entry => {
+      const item = document.createElement('li');
+      item.className = 'routine-item';
+      const time = document.createElement('span');
+      time.className = 'routine-time';
+      time.textContent = entry.values?.time || '—';
+      const name = document.createElement('span');
+      name.className = 'routine-name';
+      name.textContent = entry.values?.name || 'Activity';
+      const check = document.createElement('span');
+      check.className = 'routine-check';
+      check.textContent = completed(entry) ? '✅' : '⬜';
+      item.append(time, name, check);
+      routineList.append(item);
+    });
+    if (!routines.length) routineList.textContent = 'No routines scheduled.';
+  }
+
+  const medCount = document.getElementById('medicineDoneCount');
+  const confirmedMedicines = medicines.filter(completed).length;
+  if (medCount) medCount.textContent = `${confirmedMedicines} of ${medicines.length} Done`;
+  const overviewValue = document.getElementById('overviewMedicineValue');
+  if (overviewValue) overviewValue.textContent = `${confirmedMedicines} of ${medicines.length}`;
+  const overviewStatus = document.getElementById('overviewMedicineStatus');
+  if (overviewStatus) {
+    overviewStatus.textContent = medicines.length
+      ? (confirmedMedicines === medicines.length ? 'All confirmed today' : 'Awaiting confirmation')
+      : 'No medicines scheduled';
+    overviewStatus.classList.toggle('up', medicines.length > 0 && confirmedMedicines === medicines.length);
+  }
+  const routineCount = document.getElementById('routineDoneCount');
+  if (routineCount) routineCount.textContent = `${routines.filter(completed).length} of ${routines.length} Done`;
+  const history = document.getElementById('adherenceGrid');
+  if (history) history.textContent = '7-day history is not available from phone sync yet.';
 }
 
 function savePassportToFirestore() {
@@ -1255,6 +1329,7 @@ function applyCloudCompletions() {
     done: item.id ? cloudCompletedEventIds.has(item.id) : item.done === true
   }));
   renderTodayList();
+  renderLinkedSchedule();
   saveState();
 }
 
@@ -1376,6 +1451,25 @@ function attachFirestoreListeners(patientUid) {
   });
   activeUnsubscribers = [];
   cloudCompletedEventIds = new Set();
+  const narrativeText = document.getElementById('dailyNarrativeText');
+  if (narrativeText) narrativeText.textContent = 'No summary shared from the phone today.';
+
+  // Only a patient-selected summary is shown. Raw action events stay on the phone.
+  try {
+    const narrativeRef = db.collection('patients').doc(patientUid)
+      .collection('dailyNarratives').doc(localDayKey());
+    const unsubNarrative = narrativeRef.onSnapshot(doc => {
+      if (!narrativeText) return;
+      const data = doc.exists ? doc.data() : null;
+      const lines = Array.isArray(data?.lines) ? data.lines
+        .filter(line => typeof line === 'string').slice(0, 4) : [];
+      narrativeText.textContent = lines.length
+        ? lines.join('\n') : 'No summary shared from the phone today.';
+    }, err => console.warn('Firestore daily narrative listener:', err.message));
+    activeUnsubscribers.push(unsubNarrative);
+  } catch (err) {
+    console.warn('Could not attach daily narrative listener:', err);
+  }
 
   // 1. Listen to Records: patients/{uid}/records
   try {

@@ -3,6 +3,7 @@
 <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+<uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"/>
     <application
         android:allowBackup="false"
         android:fullBackupContent="false"
@@ -12,6 +13,15 @@
         <receiver
             android:name=".MedicineReminderReceiver"
             android:exported="false" />
+        <service
+            android:name=".SaathiNotificationListener"
+            android:label="Saathi notification context"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -37,6 +47,11 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

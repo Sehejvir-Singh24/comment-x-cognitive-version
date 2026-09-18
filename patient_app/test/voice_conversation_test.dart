@@ -108,4 +108,80 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+
+  test('SpeechService retains partial transcript when recognition receives error', () async {
+    const channel = MethodChannel('org.saathi/speech');
+    final calls = <String>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+      calls.add(call.method);
+      if (call.method == 'availability') return true;
+      return null;
+    });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    final speech = SpeechService();
+    await speech.startListening();
+
+    // Simulate Android sending partial result
+    await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .handlePlatformMessage(
+      'org.saathi/speech',
+      const StandardMethodCodec().encodeMethodCall(
+        const MethodCall('partial', 'What is my routine today?'),
+      ),
+      (data) {},
+    );
+
+    // Simulate Android sending an error (e.g. timeout / no match at end of speech)
+    await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .handlePlatformMessage(
+      'org.saathi/speech',
+      const StandardMethodCodec().encodeMethodCall(
+        const MethodCall('error', {'code': 7}),
+      ),
+      (data) {},
+    );
+
+    final transcript = await speech.finalTranscript();
+    expect(transcript, 'What is my routine today?');
+    await speech.dispose();
+  });
+
+  testWidgets(
+    'voice submits text field candidate when final speech transcript is empty',
+    (tester) async {
+      final voice = Voice();
+      final service = FakeCompanionService();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TalkScreen(
+            passport: Passport.demo(),
+            service: service,
+            speech: voice,
+            startListening: true,
+          ),
+        ),
+      );
+      await tester.pump();
+      voice.spoken.complete();
+      await tester.pump();
+
+      // Emit partial transcript to speech service stream
+      voice.transcripts.add('Good morning Saathi');
+      await tester.pump();
+
+      // Final transcript completes with empty string (e.g. due to Android error/silence)
+      voice.heard.complete('');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Candidate text from controller was submitted
+      expect(service.lastPrompt, 'Good morning Saathi');
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 }

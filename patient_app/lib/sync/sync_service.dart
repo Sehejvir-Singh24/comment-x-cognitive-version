@@ -333,7 +333,9 @@ class SyncService {
     void Function(Passport)? onPassportUpdated,
   }) async {
     try {
-      if (!CloudSetup.configured) return null;
+      // A disabled sync setting must never let an older cloud copy replace
+      // memories entered on this phone.
+      if (!CloudSetup.configured || !await enabled()) return null;
       await CloudSetup.ensureReady();
       if (FirebaseAuth.instance.currentUser == null) {
         await FirebaseAuth.instance.signInAnonymously();
@@ -348,6 +350,7 @@ class SyncService {
           .timeout(const Duration(seconds: 10));
 
       if (doc.exists && doc.data() != null) {
+        if (!await enabled()) return null;
         final passport = Passport.fromJson(doc.data()!);
         await AppDatabase.use(
           null,
