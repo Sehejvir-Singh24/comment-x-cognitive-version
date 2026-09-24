@@ -8,6 +8,7 @@ import 'cognition/record_store.dart';
 import 'context/action_context.dart';
 import 'context/context_signals_screen.dart';
 import 'cognition/cognitive_games_screen.dart';
+import 'cognition/cognitive_record.dart';
 import 'caregiver/caregiver_dashboard_screen.dart';
 import 'family/family_screen.dart';
 import 'videos/watch_screen.dart';
@@ -84,8 +85,10 @@ class _LauncherHomeState extends State<LauncherHome>
     }
     _lastHomeLogAt = now;
     unawaited(
-      ActionContext.log('RETURN_HOME', source: 'launcher')
-          .catchError((Object _) {}),
+      ActionContext.log(
+        'RETURN_HOME',
+        source: 'launcher',
+      ).catchError((Object _) {}),
     );
   }
 
@@ -885,6 +888,38 @@ class _LauncherHomeState extends State<LauncherHome>
                         ],
                       ),
                     ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Card(
+                  color: const Color(0xFFFFF4DD),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(16),
+                    leading: const Icon(
+                      Icons.landscape,
+                      size: 40,
+                      color: Color(0xFF185A49),
+                    ),
+                    title: const Text(
+                      'North-East Memories',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: const Text('Places, textiles and Bihu sounds'),
+                    trailing: const Icon(Icons.arrow_forward_ios),
+                    onTap: passport == null
+                        ? null
+                        : () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => CognitiveGamesScreen(
+                                passport: passport!,
+                                recordStore: recordStore,
+                                initialKind: RecordKind.culturalRecall,
+                              ),
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 20),

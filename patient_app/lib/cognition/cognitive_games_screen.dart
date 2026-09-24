@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
 
 import '../memory_passport/passport.dart';
 import '../voice/speech_service.dart';
@@ -53,6 +54,10 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
   int _hintsUsed = 0;
   int _correctCount = 0;
   bool _gameCompleted = false;
+  VideoPlayerController? _audioController;
+  Timer? _audioTimer;
+  bool _audioPlaying = false;
+  bool _audioLoading = false;
 
   @override
   void initState() {
@@ -70,6 +75,7 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
   @override
   void dispose() {
     _timer.stop();
+    _stopAudio();
     if (_ownsSpeech) {
       _speech.dispose();
     }
@@ -77,6 +83,7 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
   }
 
   Future<void> _startNewGame(RecordKind? category) async {
+    _stopAudio();
     setState(() {
       _loading = true;
       _gameCompleted = false;
@@ -111,6 +118,7 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
   }
 
   void _resetQuestionState() {
+    _stopAudio();
     _selectedIndex = null;
     _answered = false;
     _isCorrect = false;
@@ -131,6 +139,7 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
     if (_answered && _isCorrect) return;
 
     final q = _questions[_currentIndex];
+    _stopAudio();
     final isCorrect = (index == q.correctIndex);
     _timer.stop();
 
@@ -167,6 +176,7 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
   }
 
   void _nextQuestion() {
+    _stopAudio();
     if (_currentIndex + 1 < _questions.length) {
       setState(() {
         _currentIndex++;
@@ -187,6 +197,51 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
       _speech.speak(
         'Great job $name! You have finished today’s memory exercises.',
       );
+    }
+  }
+
+  void _stopAudio() {
+    _audioTimer?.cancel();
+    _audioTimer = null;
+    final controller = _audioController;
+    _audioController = null;
+    if (controller != null) {
+      unawaited(controller.dispose());
+    }
+    _audioPlaying = false;
+    _audioLoading = false;
+  }
+
+  Future<void> _playAudio(String assetPath) async {
+    if (_audioLoading || _audioPlaying) return;
+    _stopAudio();
+    final controller = VideoPlayerController.asset(assetPath);
+    _audioController = controller;
+    setState(() => _audioLoading = true);
+    try {
+      await _speech.stopSpeaking();
+      await controller.initialize();
+      if (!mounted || _audioController != controller) return;
+      await controller.play();
+      if (!mounted || _audioController != controller) return;
+      setState(() {
+        _audioLoading = false;
+        _audioPlaying = true;
+      });
+      _audioTimer = Timer(const Duration(seconds: 5), () {
+        _stopAudio();
+        if (mounted) setState(() {});
+      });
+    } catch (_) {
+      if (_audioController == controller) _stopAudio();
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sound could not play. Please try again.'),
+          ),
+        );
+      }
     }
   }
 
@@ -227,6 +282,7 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
       RecordKind.medicineRecall => 'Medication & Health',
       RecordKind.routineRecall => 'Daily Routine',
       RecordKind.episodicRecall => 'Life Memories',
+      RecordKind.culturalRecall => 'North-East Memories',
       _ => 'Memory Exercise',
     };
 
@@ -267,7 +323,21 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
           const SizedBox(height: 12),
 
           // Optional Photo Preview
-          if (q.photoPath != null && q.photoPath!.isNotEmpty) ...[
+          if (q.imageAssetPath != null) ...[
+            Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Image.asset(
+                  q.imageAssetPath!,
+                  width: 260,
+                  height: 220,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _buildFallbackIcon(q.icon),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ] else if (q.photoPath != null && q.photoPath!.isNotEmpty) ...[
             Center(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(20),
@@ -297,6 +367,29 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
                   size: 48,
                   color: const Color(0xFF185A49),
                 ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          if (q.audioAssetPath != null) ...[
+            FilledButton.icon(
+              key: const ValueKey('play_cultural_sound'),
+              onPressed: _audioLoading || _audioPlaying
+                  ? null
+                  : () => _playAudio(q.audioAssetPath!),
+              icon: Icon(
+                _audioLoading ? Icons.hourglass_top : Icons.play_arrow,
+              ),
+              label: Text(
+                _audioLoading
+                    ? 'Loading sound…'
+                    : _audioPlaying
+                    ? 'Playing five-second sound…'
+                    : 'Play five-second sound',
+              ),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(60),
               ),
             ),
             const SizedBox(height: 16),
@@ -391,13 +484,28 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
                   child: Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          option,
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            color: textColor,
-                          ),
+                        child: Row(
+                          children: [
+                            if (q.optionImageAssets != null) ...[
+                              Image.asset(
+                                q.optionImageAssets![index],
+                                width: 64,
+                                height: 64,
+                                fit: BoxFit.cover,
+                              ),
+                              const SizedBox(width: 12),
+                            ],
+                            Expanded(
+                              child: Text(
+                                option,
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w600,
+                                  color: textColor,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       if (trailingIcon != null)
@@ -556,6 +664,11 @@ class _CognitiveGamesScreenState extends State<CognitiveGamesScreen> {
                   avatar: const Icon(Icons.schedule, size: 18),
                   label: const Text('Routine'),
                   onPressed: () => _startNewGame(RecordKind.routineRecall),
+                ),
+                ActionChip(
+                  avatar: const Icon(Icons.landscape, size: 18),
+                  label: const Text('North-East Memories'),
+                  onPressed: () => _startNewGame(RecordKind.culturalRecall),
                 ),
               ],
             ),

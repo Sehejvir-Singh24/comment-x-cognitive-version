@@ -193,6 +193,7 @@ class _QuestionViewState extends State<_QuestionView> {
   late final TextEditingController _answer;
   late final Stopwatch _timer;
   int _hintsShown = 0; // 0..3 — how many hints are visible
+  int? _firstHintMs;
   bool _saving = false;
   _ResultData? _result; // non-null after answer committed
 
@@ -251,6 +252,7 @@ class _QuestionViewState extends State<_QuestionView> {
       correct: correct,
       responseMs: _timer.elapsedMilliseconds,
       hintsUsed: hintsUsed,
+      firstHintMs: _firstHintMs,
       difficulty: widget.difficulty,
     );
 
@@ -285,6 +287,7 @@ class _QuestionViewState extends State<_QuestionView> {
       _entry = next;
       _answer.clear();
       _hintsShown = 0;
+      _firstHintMs = null;
       _saving = false;
       _result = null;
       _timer
@@ -379,7 +382,12 @@ class _QuestionViewState extends State<_QuestionView> {
             ),
             icon: const Icon(Icons.lightbulb_outline),
             label: Text(s.showHint(_hintsShown + 1)),
-            onPressed: _saving ? null : () => setState(() => _hintsShown++),
+            onPressed: _saving
+                ? null
+                : () => setState(() {
+                    _firstHintMs ??= _timer.elapsedMilliseconds;
+                    _hintsShown++;
+                  }),
           ),
         const SizedBox(height: 20),
 

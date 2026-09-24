@@ -1,7 +1,14 @@
 /// The kind of cognitive exercise that produced a [CognitiveRecord].
 ///
 /// Each kind tracks difficulty independently via [CognitiveEngine].
-enum RecordKind { familyRecognition, videoRecall, routineRecall, medicineRecall, episodicRecall }
+enum RecordKind {
+  familyRecognition,
+  videoRecall,
+  routineRecall,
+  medicineRecall,
+  episodicRecall,
+  culturalRecall,
+}
 
 /// One recorded outcome from a cognitive exercise.
 ///
@@ -16,6 +23,7 @@ class CognitiveRecord {
     required this.correct,
     required this.responseMs,
     required this.hintsUsed,
+    this.firstHintMs,
     required this.difficulty,
     required this.timestamp,
   });
@@ -38,6 +46,10 @@ class CognitiveRecord {
   /// Number of hints the patient requested (0–3).
   final int hintsUsed;
 
+  /// Milliseconds from question display to first explicit hint request.
+  /// Null when no hint was requested or older data did not track this.
+  final int? firstHintMs;
+
   /// Difficulty level at the time of the attempt (1 = easy, 2 = medium, 3 = hard).
   final int difficulty;
 
@@ -52,6 +64,7 @@ class CognitiveRecord {
     'correct': correct,
     'responseMs': responseMs,
     'hintsUsed': hintsUsed,
+    if (firstHintMs != null) 'firstHintMs': firstHintMs,
     'difficulty': difficulty,
     'timestamp': timestamp.toIso8601String(),
   };
@@ -67,6 +80,7 @@ class CognitiveRecord {
       correct: json['correct'] as bool,
       responseMs: json['responseMs'] as int,
       hintsUsed: json['hintsUsed'] as int,
+      firstHintMs: json['firstHintMs'] as int?,
       difficulty: json['difficulty'] as int,
       timestamp: DateTime.parse(json['timestamp'] as String),
     );

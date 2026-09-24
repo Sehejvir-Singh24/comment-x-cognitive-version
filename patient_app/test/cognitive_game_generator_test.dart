@@ -17,7 +17,11 @@ void main() {
 
     test('respects difficulty levels for option counts', () {
       // Difficulty 1 -> 2 options
-      final easy = generator.generateQuestions(passport, count: 5, difficulty: 1);
+      final easy = generator.generateQuestions(
+        passport,
+        count: 5,
+        difficulty: 1,
+      );
       for (final q in easy) {
         expect(q.options.length, 2);
         expect(q.correctIndex, inInclusiveRange(0, 1));
@@ -25,14 +29,22 @@ void main() {
       }
 
       // Difficulty 2 -> 3 options
-      final med = generator.generateQuestions(passport, count: 5, difficulty: 2);
+      final med = generator.generateQuestions(
+        passport,
+        count: 5,
+        difficulty: 2,
+      );
       for (final q in med) {
         expect(q.options.length, 3);
         expect(q.correctIndex, inInclusiveRange(0, 2));
       }
 
       // Difficulty 3 -> 4 options
-      final hard = generator.generateQuestions(passport, count: 5, difficulty: 3);
+      final hard = generator.generateQuestions(
+        passport,
+        count: 5,
+        difficulty: 3,
+      );
       for (final q in hard) {
         expect(q.options.length, 4);
         expect(q.correctIndex, inInclusiveRange(0, 3));
@@ -57,6 +69,32 @@ void main() {
       for (final q in medQuestions) {
         expect(q.kind, RecordKind.medicineRecall);
       }
+    });
+
+    test('North-East round has local images and a five-second sound match', () {
+      final questions = generator.generateQuestions(
+        passport,
+        count: 8,
+        filterKind: RecordKind.culturalRecall,
+        random: Random(7),
+      );
+      expect(questions, hasLength(8));
+      expect(
+        questions.every((q) => q.kind == RecordKind.culturalRecall),
+        isTrue,
+      );
+      expect(questions.where((q) => q.imageAssetPath != null), hasLength(7));
+      final sound = questions.singleWhere((q) => q.audioAssetPath != null);
+      expect(sound.audioAssetPath, 'assets/videos/bihu_performance.webm');
+      expect(sound.optionImageAssets, hasLength(sound.options.length));
+      expect(sound.correctAnswer, 'Bihu dance');
+      final shortRound = generator.generateQuestions(
+        passport,
+        count: 3,
+        filterKind: RecordKind.culturalRecall,
+        random: Random(8),
+      );
+      expect(shortRound.where((q) => q.audioAssetPath != null), hasLength(1));
     });
 
     test('handles empty or minimal passport gracefully with fallback', () {

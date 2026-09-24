@@ -57,6 +57,7 @@ class _WatchScreenState extends State<WatchScreen> {
   final _answer = TextEditingController();
   int _questionIndex = 0;
   int _hintsShown = 0;
+  int? _firstHintMs;
   bool _saving = false;
   late Stopwatch _timer;
   _RecallResult? _result;
@@ -91,6 +92,11 @@ class _WatchScreenState extends State<WatchScreen> {
       setState(() {
         _lastWatched = last;
         _phase = last != null ? _Phase.delayedRecall : _Phase.selection;
+        if (last != null) {
+          _timer
+            ..reset()
+            ..start();
+        }
       });
     }
   }
@@ -127,6 +133,7 @@ class _WatchScreenState extends State<WatchScreen> {
       correct: correct,
       responseMs: _timer.elapsedMilliseconds,
       hintsUsed: _hintsShown,
+      firstHintMs: _firstHintMs,
       difficulty: _difficulty,
     );
 
@@ -165,7 +172,15 @@ class _WatchScreenState extends State<WatchScreen> {
     final controller = VideoPlayerController.asset(video.assetPath);
     _playerController = controller;
     controller.addListener(() {
-      if (mounted && _phase == _Phase.playing) setState(() {});
+      if (!mounted || _phase != _Phase.playing) return;
+      final limit = video.playbackLimit;
+      if (limit != null &&
+          controller.value.isInitialized &&
+          controller.value.position >= limit) {
+        _finishWatching();
+      } else {
+        setState(() {});
+      }
     });
 
     try {
@@ -186,13 +201,14 @@ class _WatchScreenState extends State<WatchScreen> {
   }
 
   void _finishWatching() {
-    _playerController?.pause();
+    if (_phase != _Phase.playing || _current == null) return;
     final immediateQuestions = _current!.questions
         .where((q) => q.type == RecallType.immediate)
         .toList();
     setState(() {
       _questionIndex = 0;
       _hintsShown = 0;
+      _firstHintMs = null;
       _answer.clear();
       _timer
         ..reset()
@@ -201,6 +217,7 @@ class _WatchScreenState extends State<WatchScreen> {
       _result = null;
       _pendingRecord = null;
     });
+    _playerController?.pause();
     // If no immediate questions, go to result.
     if (immediateQuestions.isEmpty) {
       _phase = _Phase.result;
@@ -233,6 +250,7 @@ class _WatchScreenState extends State<WatchScreen> {
       correct: correct,
       responseMs: _timer.elapsedMilliseconds,
       hintsUsed: _hintsShown,
+      firstHintMs: _firstHintMs,
       difficulty: _difficulty,
     );
 
@@ -252,6 +270,7 @@ class _WatchScreenState extends State<WatchScreen> {
         _saving = false;
         _answer.clear();
         _hintsShown = 0;
+        _firstHintMs = null;
         _timer
           ..reset()
           ..start();
@@ -310,6 +329,7 @@ class _WatchScreenState extends State<WatchScreen> {
       _pendingRecord = null;
       _answer.clear();
       _hintsShown = 0;
+      _firstHintMs = null;
       _questionIndex = 0;
     });
   }
@@ -434,7 +454,12 @@ class _WatchScreenState extends State<WatchScreen> {
             ),
             icon: const Icon(Icons.lightbulb_outline),
             label: Text(s.showHint(_hintsShown + 1)),
-            onPressed: _saving ? null : () => setState(() => _hintsShown++),
+            onPressed: _saving
+                ? null
+                : () => setState(() {
+                    _firstHintMs ??= _timer.elapsedMilliseconds;
+                    _hintsShown++;
+                  }),
           ),
         const SizedBox(height: 20),
 
@@ -550,7 +575,8 @@ class _WatchScreenState extends State<WatchScreen> {
               initialized &&
                   !controller.value.hasError &&
                   controller.value.duration > Duration.zero &&
-                  controller.value.position >= controller.value.duration
+                  controller.value.position >=
+                      (_current?.playbackLimit ?? controller.value.duration)
               ? _finishWatching
               : null,
         ),
@@ -624,7 +650,12 @@ class _WatchScreenState extends State<WatchScreen> {
             ),
             icon: const Icon(Icons.lightbulb_outline),
             label: Text(s.showHint(_hintsShown + 1)),
-            onPressed: _saving ? null : () => setState(() => _hintsShown++),
+            onPressed: _saving
+                ? null
+                : () => setState(() {
+                    _firstHintMs ??= _timer.elapsedMilliseconds;
+                    _hintsShown++;
+                  }),
           ),
         const SizedBox(height: 20),
 
@@ -777,4 +808,3 @@ class _RecallResult {
   final bool correct;
   final String label;
 }
-

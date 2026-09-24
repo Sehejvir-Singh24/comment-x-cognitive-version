@@ -16,6 +16,9 @@ class CognitiveQuestion {
     required this.explanation,
     required this.hint,
     this.photoPath,
+    this.imageAssetPath,
+    this.audioAssetPath,
+    this.optionImageAssets,
     this.icon,
   });
 
@@ -28,6 +31,9 @@ class CognitiveQuestion {
   final String explanation;
   final String hint;
   final String? photoPath;
+  final String? imageAssetPath;
+  final String? audioAssetPath;
+  final List<String>? optionImageAssets;
   final IconData? icon;
 
   String get correctAnswer => options[correctIndex];
@@ -68,6 +74,9 @@ class CognitiveGameGenerator {
     if (filterKind == null || filterKind == RecordKind.episodicRecall) {
       pool.addAll(_generateEpisodicQuestions(passport, optionCount, rng));
     }
+    if (filterKind == RecordKind.culturalRecall) {
+      pool.addAll(_generateCulturalQuestions(optionCount, rng));
+    }
 
     if (pool.isEmpty) {
       // Fallback in case passport is empty or has minimal data.
@@ -75,6 +84,13 @@ class CognitiveGameGenerator {
     }
 
     pool.shuffle(rng);
+    if (filterKind == RecordKind.culturalRecall && count > 0) {
+      final sound = pool.firstWhere((q) => q.audioAssetPath != null);
+      final visuals = pool
+          .where((q) => q.audioAssetPath == null)
+          .take(count - 1);
+      return <CognitiveQuestion>[sound, ...visuals]..shuffle(rng);
+    }
     return pool.take(count).toList();
   }
 
@@ -84,12 +100,21 @@ class CognitiveGameGenerator {
     Random rng,
   ) {
     final questions = <CognitiveQuestion>[];
-    final family =
-        passport.entries.where((e) => e.kind == MemoryKind.family).toList();
+    final family = passport.entries
+        .where((e) => e.kind == MemoryKind.family)
+        .toList();
     if (family.isEmpty) return questions;
 
     final familyNames = family.map((e) => e.name).toSet().toList();
-    const commonNames = ['Rahul', 'Ananya', 'Meera', 'Amit', 'Priya', 'Vikram', 'Sunita'];
+    const commonNames = [
+      'Rahul',
+      'Ananya',
+      'Meera',
+      'Amit',
+      'Priya',
+      'Vikram',
+      'Sunita',
+    ];
 
     for (final member in family) {
       final rel = member.values['relationship'] ?? 'Family Member';
@@ -120,7 +145,16 @@ class CognitiveGameGenerator {
       }
 
       // 2. Relationship question
-      const commonRel = ['Son', 'Daughter', 'Wife', 'Husband', 'Brother', 'Sister', 'Friend', 'Caregiver'];
+      const commonRel = [
+        'Son',
+        'Daughter',
+        'Wife',
+        'Husband',
+        'Brother',
+        'Sister',
+        'Friend',
+        'Caregiver',
+      ];
       final relDistractors = _pickDistractors(
         rel,
         commonRel,
@@ -146,7 +180,14 @@ class CognitiveGameGenerator {
       // 3. Shared activity / visit day question
       final activity = member.values['sharedActivity'];
       if (activity != null && activity.isNotEmpty) {
-        const otherActivities = ['Cricket', 'Chess', 'Gardening', 'Walking', 'Cooking', 'Music'];
+        const otherActivities = [
+          'Cricket',
+          'Chess',
+          'Gardening',
+          'Walking',
+          'Cooking',
+          'Music',
+        ];
         final actDistractors = _pickDistractors(
           activity,
           otherActivities,
@@ -245,7 +286,13 @@ class CognitiveGameGenerator {
     for (final med in meds) {
       final time = med.values['time'];
       if (time != null && time.isNotEmpty) {
-        const otherRoutines = ['Morning Walk', 'Reading the paper', 'Breakfast', 'Afternoon Nap', 'Gardening'];
+        const otherRoutines = [
+          'Morning Walk',
+          'Reading the paper',
+          'Breakfast',
+          'Afternoon Nap',
+          'Gardening',
+        ];
         final nameDistractors = _pickDistractors(
           med.name,
           [...otherRoutines, 'Evening Tea'],
@@ -278,8 +325,9 @@ class CognitiveGameGenerator {
     Random rng,
   ) {
     final questions = <CognitiveQuestion>[];
-    final routines =
-        passport.entries.where((e) => e.kind == MemoryKind.routine).toList();
+    final routines = passport.entries
+        .where((e) => e.kind == MemoryKind.routine)
+        .toList();
     if (routines.isEmpty) return questions;
 
     const allTimes = ['08:00', '09:00', '12:30', '17:00', '19:00', '21:00'];
@@ -310,7 +358,13 @@ class CognitiveGameGenerator {
         );
       }
 
-      const genericActivities = ['Breakfast', 'Morning Walk', 'Lunch', 'Evening Walk', 'Dinner'];
+      const genericActivities = [
+        'Breakfast',
+        'Morning Walk',
+        'Lunch',
+        'Evening Walk',
+        'Dinner',
+      ];
       final actDistractors = _pickDistractors(
         r.name,
         [...routineNames, ...genericActivities],
@@ -345,8 +399,9 @@ class CognitiveGameGenerator {
   ) {
     final questions = <CognitiveQuestion>[];
 
-    final places =
-        passport.entries.where((e) => e.kind == MemoryKind.place).toList();
+    final places = passport.entries
+        .where((e) => e.kind == MemoryKind.place)
+        .toList();
     for (final p in places) {
       const otherPlaces = [
         'Kamakhya Temple',
@@ -377,8 +432,9 @@ class CognitiveGameGenerator {
       );
     }
 
-    final activities =
-        passport.entries.where((e) => e.kind == MemoryKind.activity).toList();
+    final activities = passport.entries
+        .where((e) => e.kind == MemoryKind.activity)
+        .toList();
     for (final a in activities) {
       const otherActivities = [
         'Gardening',
@@ -410,7 +466,14 @@ class CognitiveGameGenerator {
     }
 
     if (passport.region.isNotEmpty) {
-      const regions = ['Assam', 'Bengal', 'Punjab', 'Kerala', 'Maharashtra', 'Gujarat'];
+      const regions = [
+        'Assam',
+        'Bengal',
+        'Punjab',
+        'Kerala',
+        'Maharashtra',
+        'Gujarat',
+      ];
       final distractors = _pickDistractors(
         passport.region,
         regions,
@@ -454,6 +517,68 @@ class CognitiveGameGenerator {
     );
   }
 
+  List<CognitiveQuestion> _generateCulturalQuestions(
+    int optionCount,
+    Random rng,
+  ) {
+    final questions = <CognitiveQuestion>[];
+    for (final item in _culturalItems) {
+      final distractors =
+          _culturalItems
+              .where((other) => other.id != item.id)
+              .map((other) => other.name)
+              .toList()
+            ..shuffle(rng);
+      final options = <String>[item.name, ...distractors.take(optionCount - 1)]
+        ..shuffle(rng);
+      questions.add(
+        CognitiveQuestion(
+          id: 'culture_${item.id}',
+          kind: RecordKind.culturalRecall,
+          entryId: item.id,
+          question: 'What place or textile is shown?',
+          options: options,
+          correctIndex: options.indexOf(item.name),
+          explanation: item.description,
+          hint: item.hint,
+          imageAssetPath: item.image,
+          icon: Icons.landscape_outlined,
+        ),
+      );
+    }
+
+    const audioChoices = <(String, String)>[
+      ('Bihu dance', 'assets/culture/bihu.jpg'),
+      ('Muga silk', 'assets/culture/muga.jpg'),
+      ('Naga shawl', 'assets/culture/naga_shawl.jpg'),
+    ];
+    final choices = [...audioChoices]..shuffle(rng);
+    final selected = choices.take(optionCount.clamp(2, 3)).toList();
+    if (!selected.any((choice) => choice.$1 == 'Bihu dance')) {
+      selected[0] = audioChoices.first;
+      selected.shuffle(rng);
+    }
+    questions.add(
+      CognitiveQuestion(
+        id: 'culture_bihu_audio',
+        kind: RecordKind.culturalRecall,
+        entryId: 'bihu_audio',
+        question: 'Listen to the five-second clip. Which picture matches it?',
+        options: selected.map((choice) => choice.$1).toList(),
+        optionImageAssets: selected.map((choice) => choice.$2).toList(),
+        correctIndex: selected.indexWhere(
+          (choice) => choice.$1 == 'Bihu dance',
+        ),
+        explanation:
+            'You heard the soundtrack of a Bihu dance performance in Assam.',
+        hint: 'Think of a celebration with dancing.',
+        audioAssetPath: 'assets/videos/bihu_performance.webm',
+        icon: Icons.hearing,
+      ),
+    );
+    return questions;
+  }
+
   List<String> _pickDistractors(
     String target,
     List<String> candidates,
@@ -482,3 +607,70 @@ class CognitiveGameGenerator {
     return result;
   }
 }
+
+class _CulturalItem {
+  const _CulturalItem(
+    this.id,
+    this.name,
+    this.image,
+    this.description,
+    this.hint,
+  );
+  final String id;
+  final String name;
+  final String image;
+  final String description;
+  final String hint;
+}
+
+const _culturalItems = <_CulturalItem>[
+  _CulturalItem(
+    'majuli',
+    'Majuli Island',
+    'assets/culture/majuli.jpg',
+    'This is Majuli Island on the Brahmaputra in Assam.',
+    'It is a river island in Assam.',
+  ),
+  _CulturalItem(
+    'loktak',
+    'Loktak Lake',
+    'assets/culture/loktak.jpg',
+    'This is Loktak Lake in Manipur.',
+    'It is a lake in Manipur.',
+  ),
+  _CulturalItem(
+    'kangla',
+    'Kangla Fort',
+    'assets/culture/kangla.jpg',
+    'This is Kangla Fort in Imphal, Manipur.',
+    'It is a historic fort in Manipur.',
+  ),
+  _CulturalItem(
+    'root_bridge',
+    'Living Root Bridge',
+    'assets/culture/root_bridge.jpg',
+    'This is a living root bridge in Meghalaya.',
+    'Tree roots form this bridge.',
+  ),
+  _CulturalItem(
+    'muga',
+    'Muga Silk',
+    'assets/culture/muga.jpg',
+    'This is traditional Assamese Muga silk.',
+    'This golden textile comes from Assam.',
+  ),
+  _CulturalItem(
+    'eri',
+    'Eri Silk',
+    'assets/culture/eri.jpg',
+    'This is Eri silk cloth.',
+    'It is a silk textile.',
+  ),
+  _CulturalItem(
+    'naga_shawl',
+    'Naga Shawl',
+    'assets/culture/naga_shawl.jpg',
+    'This is a Naga shawl.',
+    'This patterned shawl comes from Nagaland.',
+  ),
+];

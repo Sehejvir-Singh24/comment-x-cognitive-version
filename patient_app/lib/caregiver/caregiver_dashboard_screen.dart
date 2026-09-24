@@ -493,11 +493,18 @@ class _DashboardBody extends StatelessWidget {
         Card(
           child: ListTile(
             leading: const Icon(Icons.summarize_outlined, size: 32),
-            title: const Text('Today with Saathi', style: TextStyle(fontSize: 20)),
-            subtitle: const Text('Review the local action summary and choose whether to share it.'),
+            title: const Text(
+              'Today with Saathi',
+              style: TextStyle(fontSize: 20),
+            ),
+            subtitle: const Text(
+              'Review the local action summary and choose whether to share it.',
+            ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const DailyNarrativeScreen()),
+              MaterialPageRoute<void>(
+                builder: (_) => const DailyNarrativeScreen(),
+              ),
             ),
           ),
         ),
@@ -608,6 +615,7 @@ String _recordLabel(RecordKind kind) => switch (kind) {
   RecordKind.routineRecall => 'Routine recall',
   RecordKind.medicineRecall => 'Medication recall',
   RecordKind.episodicRecall => 'Life memories',
+  RecordKind.culturalRecall => 'North-East memories',
 };
 
 String _when(DateTime timestamp, DateTime now) {

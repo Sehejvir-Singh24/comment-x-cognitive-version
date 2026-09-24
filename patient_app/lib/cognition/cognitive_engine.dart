@@ -48,6 +48,7 @@ class CognitiveEngine {
     required bool correct,
     required int responseMs,
     required int hintsUsed,
+    int? firstHintMs,
     required int difficulty,
   }) => CognitiveRecord(
     id: const Uuid().v4(),
@@ -56,6 +57,7 @@ class CognitiveEngine {
     correct: correct,
     responseMs: responseMs,
     hintsUsed: hintsUsed,
+    firstHintMs: firstHintMs,
     difficulty: difficulty,
     timestamp: DateTime.now(),
   );

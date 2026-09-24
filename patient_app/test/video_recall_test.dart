@@ -6,10 +6,14 @@ import 'package:patient_app/videos/video_entry.dart';
 
 void main() {
   group('VideoCatalog', () {
-    test('entries contains 3 bundled videos', () {
-      expect(VideoCatalog.entries.length, 3);
+    test('entries include the bundled Bihu excerpt', () {
+      expect(VideoCatalog.entries.length, 4);
       final ids = VideoCatalog.entries.map((e) => e.id).toSet();
-      expect(ids, {'gardening', 'cooking', 'nature_walk'});
+      expect(ids, {'bihu', 'gardening', 'cooking', 'nature_walk'});
+      expect(
+        VideoCatalog.byId('bihu')!.playbackLimit,
+        const Duration(seconds: 20),
+      );
     });
 
     test('byId returns the correct entry', () {

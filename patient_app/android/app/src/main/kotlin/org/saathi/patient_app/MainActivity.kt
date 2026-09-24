@@ -366,7 +366,10 @@ class MainActivity : FlutterActivity() {
             override fun onError(error: Int) {
                 Log.w("SaathiSpeech", "onError: code=$error")
                 runOnUiThread {
-                    speechChannel?.invokeMethod("error", mapOf("code" to error))
+                    // ERROR_NO_MATCH (7) and ERROR_RECOGNIZER_BUSY (8) are
+                    // transient; signal Dart with the numeric code as a string
+                    // so it can decide whether to retry or surface the error.
+                    speechChannel?.invokeMethod("error", error.toString())
                     destroySpeechRecognizer()
                 }
             }

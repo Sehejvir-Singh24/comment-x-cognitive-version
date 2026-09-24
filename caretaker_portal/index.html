@@ -137,10 +137,10 @@
             </svg>
             <div class="csi-label">
               <span class="csi-value">76</span>
-              <span class="csi-text">Observe</span>
+              <span class="csi-text">Sample</span>
             </div>
           </div>
-          <p class="csi-caption">Cognitive Stability Indicator</p>
+          <p class="csi-caption">Demo exercise score</p>
         </div>
       </div>
 
@@ -152,8 +152,8 @@
           </div>
           <div class="stat-body">
             <span class="stat-label">Recall Accuracy</span>
-            <span class="stat-value">74%</span>
-            <span class="stat-delta up">↑ 3% this week</span>
+            <span class="stat-value" id="cognitiveAccuracyValue">—</span>
+            <span class="stat-delta neutral">Recent synced answers</span>
           </div>
         </div>
         <div class="stat-card" data-animate>
@@ -161,9 +161,9 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           </div>
           <div class="stat-body">
-            <span class="stat-label">Hint Dependency</span>
-            <span class="stat-value">1.3</span>
-            <span class="stat-delta neutral">→ Stable</span>
+            <span class="stat-label">Hints per Exercise</span>
+            <span class="stat-value" id="overviewHintValue">—</span>
+            <span class="stat-delta neutral">Recent synced answers</span>
           </div>
         </div>
         <div class="stat-card" data-animate>
@@ -171,9 +171,9 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
           </div>
           <div class="stat-body">
-            <span class="stat-label">Avg Response Time</span>
-            <span class="stat-value">6.2s</span>
-            <span class="stat-delta down">↓ 0.8s improved</span>
+            <span class="stat-label">Median Response Time</span>
+            <span class="stat-value" id="overviewResponseValue">—</span>
+            <span class="stat-delta neutral">Recent synced answers</span>
           </div>
         </div>
         <div class="stat-card" data-animate>
@@ -203,7 +203,7 @@
         <div class="card">
           <div class="card-header">
             <h2 class="card-title">Cognitive Stability — 4 Weeks</h2>
-            <span class="card-tag">Behavioural Trend</span>
+            <span class="card-tag">Demo sample</span>
           </div>
           <div class="chart-container">
             <div class="chart-bars" id="stabilityChart">
@@ -213,7 +213,7 @@
               <span>Wk 1</span><span>Wk 2</span><span>Wk 3</span><span>Wk 4</span>
             </div>
           </div>
-          <p class="chart-note">⚠️ Behavioural change detected between week 3 and 4. Consider a check-in.</p>
+          <p class="chart-note">Illustrative sample only. No four-week clinical trend has been calculated.</p>
         </div>
 
         <!-- Today's plan -->
@@ -253,6 +253,7 @@
         <button class="filter-btn" data-filter="family">Family Recognition</button>
         <button class="filter-btn" data-filter="video">Video Recall</button>
         <button class="filter-btn" data-filter="medicine">Medicine Recall</button>
+        <button class="filter-btn" data-filter="culture">North-East Memories</button>
       </div>
 
       <div class="records-table-wrap">
@@ -279,18 +280,17 @@
           <div class="donut-wrap">
             <svg viewBox="0 0 120 120" class="donut-svg">
               <circle cx="60" cy="60" r="44" fill="none" stroke="#e8f0ec" stroke-width="18"/>
-              <circle cx="60" cy="60" r="44" fill="none" stroke="#185A49" stroke-width="18"
+              <circle id="cognitiveAccuracyRing" cx="60" cy="60" r="44" fill="none" stroke="#185A49" stroke-width="18"
                 stroke-dasharray="276" stroke-dashoffset="72" stroke-linecap="round"
                 transform="rotate(-90 60 60)"/>
             </svg>
             <div class="donut-center">
-              <span class="donut-pct">74%</span>
+              <span class="donut-pct" id="cognitiveAccuracyDonut">—</span>
               <span class="donut-lbl">Correct</span>
             </div>
           </div>
-          <div class="donut-legend">
-            <span class="legend-dot correct"></span> Correct (74%)
-            <span class="legend-dot incorrect"></span> Needed support (26%)
+          <div class="donut-legend" id="cognitiveAccuracyLegend">
+            No synced exercise results yet
           </div>
         </div>
 
@@ -299,8 +299,32 @@
           <div class="sparkline-wrap" id="hintSparkline">
             <!-- Rendered by JS -->
           </div>
-          <p class="chart-note" style="margin-top:8px">Lower hint usage → better recall independence</p>
+          <p class="chart-note" style="margin-top:8px">Sample until connected; then latest synced hint counts. Difficulty and context affect results.</p>
         </div>
+      </div>
+
+      <div class="card" style="margin-top:20px">
+        <div class="card-header"><h2 class="card-title">Digital Biomarkers</h2></div>
+        <p class="chart-note">Descriptive exercise measures from this phone. These are not validated clinical biomarkers, a MoCA score, or a diagnosis.</p>
+        <div class="cognitive-summary-grid" style="margin-top:16px">
+          <div>
+            <h3>Response time</h3>
+            <p id="biomarkerResponseTime">No synced answers yet</p>
+          </div>
+          <div>
+            <h3>Hesitation: time to first hint</h3>
+            <p id="biomarkerHintTime">No tracked hint requests yet</p>
+          </div>
+          <div>
+            <h3>Delayed memory recall</h3>
+            <p id="biomarkerDelayedRecall">No immediate and delayed video results yet</p>
+          </div>
+          <div>
+            <h3>Orientation support</h3>
+            <p id="biomarkerOrientation">Not measured. “Why am I here?” history stays on the phone.</p>
+          </div>
+        </div>
+        <p class="chart-note">These tasks touch memory, attention, and orientation themes also assessed by <a href="https://mocacognition.com/paper" target="_blank" rel="noopener noreferrer">MoCA</a>. No correlation with MoCA scores has been established for Saathi.</p>
       </div>
     </section>
 
@@ -427,6 +451,32 @@
             </button>
           </div>
           <ul class="passport-list" id="passportPlacesList">
+            <!-- Dynamic items populated by renderPassportPage() -->
+          </ul>
+        </div>
+
+        <!-- Life Memories Card -->
+        <div class="card passport-card">
+          <div class="card-header-actions">
+            <h2 class="card-title">Life Memories</h2>
+            <button class="btn-add-item" id="btnAddMemoryItem">
+              <span>+</span> Add Memory
+            </button>
+          </div>
+          <ul class="passport-list" id="passportMemoriesList">
+            <!-- Dynamic items populated by renderPassportPage() -->
+          </ul>
+        </div>
+
+        <!-- Activities Card -->
+        <div class="card passport-card">
+          <div class="card-header-actions">
+            <h2 class="card-title">Activities &amp; Hobbies</h2>
+            <button class="btn-add-item" id="btnAddActivityItem">
+              <span>+</span> Add Activity
+            </button>
+          </div>
+          <ul class="passport-list" id="passportActivitiesList">
             <!-- Dynamic items populated by renderPassportPage() -->
           </ul>
         </div>
@@ -984,9 +1034,13 @@
             <label class="form-label" for="editFamilyActivity">Shared Memory / Activity</label>
             <input type="text" id="editFamilyActivity" class="form-input" placeholder="e.g. Cricket, Morning tea, Walking" />
           </div>
+          <div class="form-group">
+            <label class="form-label" for="editFamilyNotes">Notes (optional)</label>
+            <textarea id="editFamilyNotes" class="form-input" rows="2" placeholder="Any additional context for Saathi…" style="resize:vertical;"></textarea>
+          </div>
           <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
             <button type="button" class="btn-ghost" id="cancelFamilyBtn">Cancel</button>
-            <button type="button" class="btn-primary" id="saveFamilyBtn">Save & Sync to App</button>
+            <button type="button" class="btn-primary" id="saveFamilyBtn">Save &amp; Sync to App</button>
           </div>
         </form>
       </div>
@@ -1024,9 +1078,13 @@
             <label class="form-label" for="editRoutineInstructions">Dosage / Caregiver Instructions</label>
             <input type="text" id="editRoutineInstructions" class="form-input" placeholder="e.g. 5mg with water after food" />
           </div>
+          <div class="form-group">
+            <label class="form-label" for="editRoutineNotes">Notes (optional)</label>
+            <textarea id="editRoutineNotes" class="form-input" rows="2" placeholder="Additional details or instructions..." style="resize:vertical;"></textarea>
+          </div>
           <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
             <button type="button" class="btn-ghost" id="cancelRoutineBtn">Cancel</button>
-            <button type="button" class="btn-primary" id="saveRoutineBtn">Save & Sync to App</button>
+            <button type="button" class="btn-primary" id="saveRoutineBtn">Save &amp; Sync to App</button>
           </div>
         </form>
       </div>
@@ -1058,15 +1116,74 @@
               <option value="📍">📍 Other Landmark</option>
             </select>
           </div>
+          <div class="form-group">
+            <label class="form-label" for="editPlaceNotes">Notes (optional)</label>
+            <textarea id="editPlaceNotes" class="form-input" rows="2" placeholder="e.g. Mr. Bora visits every Tuesday" style="resize:vertical;"></textarea>
+          </div>
           <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
             <button type="button" class="btn-ghost" id="cancelPlaceBtn">Cancel</button>
-            <button type="button" class="btn-primary" id="savePlaceBtn">Save & Sync to App</button>
+            <button type="button" class="btn-primary" id="savePlaceBtn">Save &amp; Sync to App</button>
           </div>
         </form>
       </div>
     </div>
   </div>
 
-  <script src="app.js?v=2.1"></script>
+  <!-- ── Modal: Add / Edit Life Memory ───────────────── -->
+  <div class="modal-overlay" id="passportMemoryModal">
+    <div class="modal-card" style="max-width:480px;">
+      <div class="modal-header">
+        <h3 id="memoryModalTitle">💭 Life Memory</h3>
+        <button class="modal-close" id="closeMemoryModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="memoryForm" onsubmit="event.preventDefault();">
+          <input type="hidden" id="editMemoryId" value="" />
+          <div class="form-group">
+            <label class="form-label" for="editMemoryName">Memory Title</label>
+            <input type="text" id="editMemoryName" class="form-input" required placeholder="e.g. Wedding day, First job, Family trip" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="editMemoryNotes">Description / Details</label>
+            <textarea id="editMemoryNotes" class="form-input" rows="3" placeholder="Describe this memory in a few sentences. Saathi will use this to help the patient recall it." style="resize:vertical;"></textarea>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
+            <button type="button" class="btn-ghost" id="cancelMemoryBtn">Cancel</button>
+            <button type="button" class="btn-primary" id="saveMemoryBtn">Save &amp; Sync to App</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal: Add / Edit Activity ──────────────────── -->
+  <div class="modal-overlay" id="passportActivityModal">
+    <div class="modal-card" style="max-width:440px;">
+      <div class="modal-header">
+        <h3 id="activityModalTitle">🌱 Activity / Hobby</h3>
+        <button class="modal-close" id="closeActivityModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="activityForm" onsubmit="event.preventDefault();">
+          <input type="hidden" id="editActivityId" value="" />
+          <div class="form-group">
+            <label class="form-label" for="editActivityName">Activity / Hobby Name</label>
+            <input type="text" id="editActivityName" class="form-input" required placeholder="e.g. Gardening, Reading, Cricket" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="editActivityNotes">Notes (optional)</label>
+            <textarea id="editActivityNotes" class="form-input" rows="2" placeholder="e.g. Enjoys watering plants in the evening" style="resize:vertical;"></textarea>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
+            <button type="button" class="btn-ghost" id="cancelActivityBtn">Cancel</button>
+            <button type="button" class="btn-primary" id="saveActivityBtn">Save &amp; Sync to App</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="biomarkers.js?v=1"></script>
+  <script src="app.js?v=2.4"></script>
 </body>
 </html>

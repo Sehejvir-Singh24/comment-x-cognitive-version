@@ -6,3 +6,7 @@ patient_app/.env
 *.env
 .freebuff/
 patient_app/android/build/
+demo_video/tools/
+demo_video/clips/
+demo_video/frames/
+demo_video/*.mp4

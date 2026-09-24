@@ -392,19 +392,29 @@ class SyncService {
           .doc(id);
       final payload =
           jsonDecode(row.read<String>('payload')) as Map<String, dynamic>;
-      await FirebaseFirestore.instance
-          .runTransaction((tx) async {
-            final old = await tx.get(ref);
-            if (kind == 'records') {
-              if (!old.exists) tx.set(ref, payload);
-            } else if (kind == 'dailyCompletions') {
-              tx.set(ref, payload, SetOptions(merge: true));
-            } else if (!old.exists ||
-                ((old.data()?['revision'] as int?) ?? -1) < seq) {
-              tx.set(ref, {...payload, 'revision': seq});
-            }
-          })
-          .timeout(const Duration(seconds: 15));
+      if (kind == 'passport') {
+        // Passport is always a full-document snapshot. Write unconditionally
+        // so that phone edits are never silently blocked by a higher revision
+        // written by the caretaker dashboard.
+        await ref
+            .set({...payload, 'updatedByPhone': true}, SetOptions(merge: false))
+            .timeout(const Duration(seconds: 15));
+      } else {
+        await FirebaseFirestore.instance
+            .runTransaction((tx) async {
+              final old = await tx.get(ref);
+              if (kind == 'records') {
+                // Records are immutable once written — never overwrite.
+                if (!old.exists) tx.set(ref, payload);
+              } else if (kind == 'dailyCompletions') {
+                tx.set(ref, payload, SetOptions(merge: true));
+              } else {
+                // All other kinds: always write through.
+                tx.set(ref, payload);
+              }
+            })
+            .timeout(const Duration(seconds: 15));
+      }
       await AppDatabase.use(
         null,
         (db) =>

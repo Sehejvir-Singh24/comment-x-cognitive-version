@@ -33,6 +33,7 @@ class VideoEntry {
     required this.assetPath,
     required this.icon,
     required this.questions,
+    this.playbackLimit,
   });
 
   /// Unique identifier (e.g., "gardening").
@@ -53,4 +54,7 @@ class VideoEntry {
 
   /// Recall questions associated with this video.
   final List<RecallQuestion> questions;
+
+  /// Optional cap for a short excerpt used by a recall exercise.
+  final Duration? playbackLimit;
 }

@@ -352,17 +352,39 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
       _transcripts ??= _speech!.transcripts.stream.listen((text) {
         if (mounted) setState(() => _controller.text = text);
       });
-      await _speech!.startListening();
-      if (!mounted || epoch != _voiceEpoch) {
-        await _speech!.cancelListening();
-        return;
+
+      // Retry up to 2 extra times if the recognizer fires immediately with
+      // no speech (Android error codes 6 / 7 / 8 on noisy or cold start).
+      String text = '';
+      for (int attempt = 0; attempt < 3; attempt++) {
+        if (!mounted ||
+            !_foreground ||
+            !_voiceConversation ||
+            epoch != _voiceEpoch) {
+          await _speech!.cancelListening();
+          return;
+        }
+        await _speech!.startListening();
+        if (!mounted || epoch != _voiceEpoch) {
+          await _speech!.cancelListening();
+          return;
+        }
+        if (attempt == 0) {
+          setState(() {
+            _listening = true;
+            _voiceBusy = false;
+          });
+        }
+        text = await _speech!.finalTranscript();
+        if (!mounted || !_foreground || epoch != _voiceEpoch) return;
+        if (text.trim().isNotEmpty) break;
+        // Android can report an empty final result after already delivering
+        // useful partial speech. Preserve and submit that text immediately.
+        if (_controller.text.trim().isNotEmpty) break;
+        // No speech on this attempt — brief pause then retry silently.
+        if (attempt < 2) await Future<void>.delayed(const Duration(milliseconds: 400));
       }
-      setState(() {
-        _listening = true;
-        _voiceBusy = false;
-      });
-      final text = await _speech!.finalTranscript();
-      if (!mounted || !_foreground || epoch != _voiceEpoch) return;
+
       setState(() => _listening = false);
       final candidate = text.trim().isNotEmpty
           ? text.trim()
@@ -370,7 +392,7 @@ class _TalkScreenState extends State<TalkScreen> with WidgetsBindingObserver {
       if (candidate.isEmpty) {
         _endVoice();
         _notice(
-          'Conversation paused. Tap Start voice conversation when you’re ready.',
+          'Conversation paused. Tap Start voice conversation when you\'re ready.',
         );
       } else if (RegExp(
         r'^(stop|stop listening|stop talking|end conversation)[.!]?$',

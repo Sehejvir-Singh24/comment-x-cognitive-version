@@ -46,6 +46,27 @@ void main() {
     expect(reloaded.first.kind, RecordKind.familyRecognition);
   });
 
+  test(
+    'first hint timing survives storage and legacy records remain readable',
+    () async {
+      final original = _makeRecord(hintsUsed: 1);
+      final timed = CognitiveRecord(
+        id: original.id,
+        kind: original.kind,
+        entryId: original.entryId,
+        correct: original.correct,
+        responseMs: original.responseMs,
+        hintsUsed: original.hintsUsed,
+        firstHintMs: 700,
+        difficulty: original.difficulty,
+        timestamp: original.timestamp,
+      );
+      await store.save(timed);
+      expect((await store.loadAll()).single.firstHintMs, 700);
+      expect(CognitiveRecord.fromJson(original.toJson()).firstHintMs, isNull);
+    },
+  );
+
   test('appends multiple records in order', () async {
     final r1 = _makeRecord(correct: true);
     await Future.delayed(const Duration(milliseconds: 1));

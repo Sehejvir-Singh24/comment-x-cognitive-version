@@ -25,6 +25,31 @@ class VideoCatalog {
   /// All available videos.  Order matches the selection UI.
   static const List<VideoEntry> entries = [
     VideoEntry(
+      id: 'bihu',
+      title: 'Bihu Dance',
+      topic: 'Bihu',
+      assetPath: 'assets/videos/bihu_performance.webm',
+      playbackLimit: Duration(seconds: 20),
+      icon: 0xe0e4, // Icons.celebration
+      questions: [
+        RecallQuestion(
+          text: 'Which dance did you see?',
+          expectedAnswer: 'Bihu',
+          type: RecallType.immediate,
+        ),
+        RecallQuestion(
+          text: 'Which state is this Bihu performance from?',
+          expectedAnswer: 'Assam',
+          type: RecallType.immediate,
+        ),
+        RecallQuestion(
+          text: 'Do you remember the dance you watched earlier?',
+          expectedAnswer: 'Bihu',
+          type: RecallType.delayed,
+        ),
+      ],
+    ),
+    VideoEntry(
       id: 'gardening',
       title: 'Gardening',
       topic: 'gardening',

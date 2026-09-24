@@ -202,6 +202,7 @@ const KIND_EMOJI = {
   family:   '👨‍👩‍👧',
   video:    '🎬',
   medicine: '💊',
+  culture:  '🏞️',
 };
 
 function renderRecentActivity() {
@@ -237,11 +238,12 @@ function renderRecordsTable(filter = 'all') {
       <td>${KIND_EMOJI[r.type] ?? '🧠'} ${r.label}</td>
       <td><span class="result-pill ${r.correct ? 'correct' : 'incorrect'}">${r.correct ? 'Correct' : 'Needed support'}</span></td>
       <td>${r.hints}</td>
-      <td>—</td>
+      <td>${Number.isFinite(r.responseMs) && r.responseMs > 0 ? `${(r.responseMs / 1000).toFixed(1)} s` : '—'}</td>
       <td>${r.time}</td>
       <td><span class="difficulty-badge ${r.diff}">${r.diff.charAt(0).toUpperCase() + r.diff.slice(1)}</span></td>
     </tr>
   `).join('');
+  if (!filtered.length) tbody.innerHTML = '<tr><td colspan="6">No synced records in this view.</td></tr>';
 }
 
 document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -461,6 +463,12 @@ function initPassportPage() {
   const btnAddPlace = document.getElementById('btnAddPlaceItem');
   if (btnAddPlace) btnAddPlace.addEventListener('click', () => openPlaceModal(null));
 
+  const btnAddMemory = document.getElementById('btnAddMemoryItem');
+  if (btnAddMemory) btnAddMemory.addEventListener('click', () => openMemoryModal(null));
+
+  const btnAddActivity = document.getElementById('btnAddActivityItem');
+  if (btnAddActivity) btnAddActivity.addEventListener('click', () => openActivityModal(null));
+
   // Profile modal
   document.getElementById('closeProfileModal')?.addEventListener('click', () => closePassportModal('passportProfileModal'));
   document.getElementById('cancelProfileBtn')?.addEventListener('click', () => closePassportModal('passportProfileModal'));
@@ -481,8 +489,18 @@ function initPassportPage() {
   document.getElementById('cancelPlaceBtn')?.addEventListener('click', () => closePassportModal('passportPlaceModal'));
   document.getElementById('savePlaceBtn')?.addEventListener('click', handleSavePlace);
 
+  // Memory modal
+  document.getElementById('closeMemoryModal')?.addEventListener('click', () => closePassportModal('passportMemoryModal'));
+  document.getElementById('cancelMemoryBtn')?.addEventListener('click', () => closePassportModal('passportMemoryModal'));
+  document.getElementById('saveMemoryBtn')?.addEventListener('click', handleSaveMemory);
+
+  // Activity modal
+  document.getElementById('closeActivityModal')?.addEventListener('click', () => closePassportModal('passportActivityModal'));
+  document.getElementById('cancelActivityBtn')?.addEventListener('click', () => closePassportModal('passportActivityModal'));
+  document.getElementById('saveActivityBtn')?.addEventListener('click', handleSaveActivity);
+
   // Close modals on overlay backdrop click
-  ['passportProfileModal', 'passportFamilyModal', 'passportRoutineModal', 'passportPlaceModal'].forEach(id => {
+  ['passportProfileModal', 'passportFamilyModal', 'passportRoutineModal', 'passportPlaceModal', 'passportMemoryModal', 'passportActivityModal'].forEach(id => {
     const m = document.getElementById(id);
     if (m) {
       m.addEventListener('click', e => {
@@ -547,6 +565,7 @@ function renderPassportPage() {
         const act = v.sharedActivity ? ` · ${v.sharedActivity}` : '';
         const color = v.color || (name.startsWith('R') ? 'teal' : name.startsWith('A') ? 'amber' : 'rose');
         const initial = name.charAt(0).toUpperCase();
+        const notes = v.notes ? `<small style="display:block;font-size:11px;color:var(--text-muted);">${v.notes}</small>` : '';
 
         return `
           <li class="passport-item" data-id="${entry.id}">
@@ -554,6 +573,7 @@ function renderPassportPage() {
             <div style="flex:1;">
               <span class="p-name">${name}</span>
               <span class="p-rel">${rel}${visits}${act}</span>
+              ${notes}
             </div>
             <div class="passport-item-actions">
               <button class="btn-icon-sm" title="Edit" onclick="openFamilyModal('${entry.id}')">✏️</button>
@@ -584,6 +604,7 @@ function renderPassportPage() {
         const name = v.name || entry.name || 'Routine';
         const isMed = entry.kind === 'medicine' || name.toLowerCase().includes('med') || (v.instructions && v.instructions.length > 0);
         const sub = v.instructions ? `<small style="display:block;font-size:11px;color:var(--text-muted);">${v.instructions}</small>` : '';
+        const notes = v.notes ? `<small style="display:block;font-size:11px;color:var(--text-muted);">${v.notes}</small>` : '';
 
         return `
           <li class="passport-item timeline-item" data-id="${entry.id}">
@@ -592,6 +613,7 @@ function renderPassportPage() {
             <div style="flex:1;">
               <span class="timeline-label">${isMed && !name.includes('💊') ? '💊 ' : ''}${name}</span>
               ${sub}
+              ${notes}
             </div>
             <div class="passport-item-actions">
               <button class="btn-icon-sm" title="Edit" onclick="openRoutineModal('${entry.id}')">✏️</button>
@@ -614,15 +636,73 @@ function renderPassportPage() {
         const v = entry.values || {};
         const name = v.name || entry.name || 'Familiar Place';
         const icon = v.icon || '🏠';
+        const notes = v.notes ? `<small style="display:block;font-size:11px;color:var(--text-muted);">${v.notes}</small>` : '';
 
         return `
           <li class="passport-item" data-id="${entry.id}">
             <div class="place-icon">${icon}</div>
             <div style="flex:1;">
               <span class="p-name">${name}</span>
+              ${notes}
             </div>
             <div class="passport-item-actions">
               <button class="btn-icon-sm" title="Edit" onclick="openPlaceModal('${entry.id}')">✏️</button>
+              <button class="btn-icon-sm delete" title="Delete" onclick="deletePassportEntry('${entry.id}')">🗑️</button>
+            </div>
+          </li>
+        `;
+      }).join('');
+    }
+  }
+
+  // 5. Life Memories list
+  const memoriesListEl = document.getElementById('passportMemoriesList');
+  if (memoriesListEl) {
+    const memoryEntries = (DEMO.passport.entries || []).filter(e => e.kind === 'memory');
+    if (memoryEntries.length === 0) {
+      memoriesListEl.innerHTML = '<li class="passport-item" style="color:var(--text-muted);font-size:13px;">No life memories added yet. Tap "+ Add Memory" to add one.</li>';
+    } else {
+      memoriesListEl.innerHTML = memoryEntries.map(entry => {
+        const v = entry.values || {};
+        const name = v.name || entry.name || 'Memory';
+        const notes = v.notes ? `<small style="display:block;font-size:11px;color:var(--text-muted);">${v.notes}</small>` : '';
+        return `
+          <li class="passport-item" data-id="${entry.id}">
+            <div class="place-icon">💭</div>
+            <div style="flex:1;">
+              <span class="p-name">${name}</span>
+              ${notes}
+            </div>
+            <div class="passport-item-actions">
+              <button class="btn-icon-sm" title="Edit" onclick="openMemoryModal('${entry.id}')">✏️</button>
+              <button class="btn-icon-sm delete" title="Delete" onclick="deletePassportEntry('${entry.id}')">🗑️</button>
+            </div>
+          </li>
+        `;
+      }).join('');
+    }
+  }
+
+  // 6. Activities list
+  const activitiesListEl = document.getElementById('passportActivitiesList');
+  if (activitiesListEl) {
+    const activityEntries = (DEMO.passport.entries || []).filter(e => e.kind === 'activity');
+    if (activityEntries.length === 0) {
+      activitiesListEl.innerHTML = '<li class="passport-item" style="color:var(--text-muted);font-size:13px;">No activities added yet. Tap "+ Add Activity" to add one.</li>';
+    } else {
+      activitiesListEl.innerHTML = activityEntries.map(entry => {
+        const v = entry.values || {};
+        const name = v.name || entry.name || 'Activity';
+        const notes = v.notes ? `<small style="display:block;font-size:11px;color:var(--text-muted);">${v.notes}</small>` : '';
+        return `
+          <li class="passport-item" data-id="${entry.id}">
+            <div class="place-icon">🌱</div>
+            <div style="flex:1;">
+              <span class="p-name">${name}</span>
+              ${notes}
+            </div>
+            <div class="passport-item-actions">
+              <button class="btn-icon-sm" title="Edit" onclick="openActivityModal('${entry.id}')">✏️</button>
               <button class="btn-icon-sm delete" title="Delete" onclick="deletePassportEntry('${entry.id}')">🗑️</button>
             </div>
           </li>
@@ -805,6 +885,8 @@ window.openFamilyModal = function (entryId) {
       document.getElementById('editFamilyVisits').value = v.visits || '';
       document.getElementById('editFamilyActivity').value = v.sharedActivity || '';
       document.getElementById('editFamilyColor').value = v.color || 'teal';
+      const notesEl = document.getElementById('editFamilyNotes');
+      if (notesEl) notesEl.value = v.notes || '';
     }
   } else {
     if (title) title.textContent = '➕ Add Family Member';
@@ -813,6 +895,8 @@ window.openFamilyModal = function (entryId) {
     document.getElementById('editFamilyVisits').value = '';
     document.getElementById('editFamilyActivity').value = '';
     document.getElementById('editFamilyColor').value = 'teal';
+    const notesEl = document.getElementById('editFamilyNotes');
+    if (notesEl) notesEl.value = '';
   }
   openPassportModal('passportFamilyModal');
 };
@@ -824,6 +908,7 @@ function handleSaveFamily() {
   const visits = document.getElementById('editFamilyVisits').value.trim();
   const activity = document.getElementById('editFamilyActivity').value.trim();
   const color = document.getElementById('editFamilyColor').value;
+  const notes = document.getElementById('editFamilyNotes')?.value?.trim() || '';
 
   if (!name) return alert('Please enter a name');
 
@@ -831,6 +916,7 @@ function handleSaveFamily() {
   if (visits) values.visits = visits;
   if (activity) values.sharedActivity = activity;
   if (color) values.color = color;
+  if (notes) values.notes = notes;
 
   if (id) {
     const idx = DEMO.passport.entries.findIndex(e => e.id === id);
@@ -863,6 +949,8 @@ window.openRoutineModal = function (entryId) {
       document.getElementById('editRoutineName').value = v.name || entry.name || '';
       document.getElementById('editRoutineKind').value = entry.kind === 'medicine' || (v.name && v.name.toLowerCase().includes('med')) ? 'medicine' : 'routine';
       document.getElementById('editRoutineInstructions').value = v.instructions || '';
+      const notesEl = document.getElementById('editRoutineRoutine') || document.getElementById('editRoutineNotes');
+      if (notesEl) notesEl.value = v.notes || '';
     }
   } else {
     if (title) title.textContent = '➕ Add Schedule Item';
@@ -870,6 +958,8 @@ window.openRoutineModal = function (entryId) {
     document.getElementById('editRoutineName').value = '';
     document.getElementById('editRoutineKind').value = 'routine';
     document.getElementById('editRoutineInstructions').value = '';
+    const notesEl = document.getElementById('editRoutineRoutine') || document.getElementById('editRoutineNotes');
+    if (notesEl) notesEl.value = '';
   }
   openPassportModal('passportRoutineModal');
 };
@@ -880,11 +970,13 @@ function handleSaveRoutine() {
   const name = document.getElementById('editRoutineName').value.trim();
   const kind = document.getElementById('editRoutineKind').value;
   const instructions = document.getElementById('editRoutineInstructions').value.trim();
+  const notes = document.getElementById('editRoutineNotes')?.value?.trim() || '';
 
   if (!name) return alert('Please enter routine or medicine name');
 
   const values = { name, time };
   if (instructions) values.instructions = instructions;
+  if (notes) values.notes = notes;
 
   if (id) {
     const idx = DEMO.passport.entries.findIndex(e => e.id === id);
@@ -930,10 +1022,12 @@ function handleSavePlace() {
   const id = document.getElementById('editPlaceId').value.trim();
   const name = document.getElementById('editPlaceName').value.trim();
   const icon = document.getElementById('editPlaceIcon').value;
+  const notes = document.getElementById('editPlaceNotes')?.value?.trim() || '';
 
   if (!name) return alert('Please enter place name');
 
   const values = { name, icon };
+  if (notes) values.notes = notes;
 
   if (id) {
     const idx = DEMO.passport.entries.findIndex(e => e.id === id);
@@ -952,6 +1046,105 @@ function handleSavePlace() {
   renderPassportPage();
   saveState();
   closePassportModal('passportPlaceModal');
+}
+
+window.openMemoryModal = function (entryId) {
+  document.getElementById('editMemoryId').value = entryId || '';
+  const title = document.getElementById('memoryModalTitle');
+  if (entryId) {
+    if (title) title.textContent = '✏️ Edit Life Memory';
+    const entry = DEMO.passport.entries.find(e => e.id === entryId);
+    if (entry) {
+      const v = entry.values || {};
+      document.getElementById('editMemoryName').value = v.name || entry.name || '';
+      document.getElementById('editMemoryNotes').value = v.notes || '';
+    }
+  } else {
+    if (title) title.textContent = '➕ Add Life Memory';
+    document.getElementById('editMemoryName').value = '';
+    document.getElementById('editMemoryNotes').value = '';
+  }
+  openPassportModal('passportMemoryModal');
+};
+
+function handleSaveMemory() {
+  const id = document.getElementById('editMemoryId').value.trim();
+  const name = document.getElementById('editMemoryName').value.trim();
+  const notes = document.getElementById('editMemoryNotes').value.trim();
+
+  if (!name) return alert('Please enter a memory title');
+
+  const values = { name };
+  if (notes) values.notes = notes;
+
+  if (id) {
+    const idx = DEMO.passport.entries.findIndex(e => e.id === id);
+    if (idx >= 0) DEMO.passport.entries[idx].values = values;
+  } else {
+    DEMO.passport.entries.push({
+      id: `mem_${Date.now()}`,
+      kind: 'memory',
+      values
+    });
+  }
+
+  savePassportToFirestore();
+  renderPassportPage();
+  saveState();
+  closePassportModal('passportMemoryModal');
+}
+
+window.openActivityModal = function (entryId) {
+  document.getElementById('editActivityId').value = entryId || '';
+  const title = document.getElementById('activityModalTitle');
+  if (entryId) {
+    if (title) title.textContent = '✏️ Edit Activity';
+    const entry = DEMO.passport.entries.find(e => e.id === entryId);
+    if (entry) {
+      const v = entry.values || {};
+      document.getElementById('editActivityName').value = v.name || entry.name || '';
+      document.getElementById('editActivityNotes').value = v.notes || '';
+    }
+  } else {
+    if (title) title.textContent = '➕ Add Activity / Hobby';
+    document.getElementById('editActivityName').value = '';
+    document.getElementById('editActivityNotes').value = '';
+  }
+  openPassportModal('passportActivityModal');
+};
+
+function handleSaveActivity() {
+  const id = document.getElementById('editActivityId').value.trim();
+  const name = document.getElementById('editActivityName').value.trim();
+  const notes = document.getElementById('editActivityNotes').value.trim();
+
+  if (!name) return alert('Please enter an activity name');
+
+  const values = { name };
+  if (notes) values.notes = notes;
+
+  if (id) {
+    const idx = DEMO.passport.entries.findIndex(e => e.id === id);
+    if (idx >= 0) DEMO.passport.entries[idx].values = values;
+  } else {
+    DEMO.passport.entries.push({
+      id: `act_${Date.now()}`,
+      kind: 'activity',
+      values
+    });
+  }
+
+  // Sync the first activity entry to the profile's favourite activity display
+  const firstAct = (DEMO.passport.entries || []).find(e => e.kind === 'activity');
+  if (firstAct) {
+    const favEl = document.getElementById('passportFavActivity');
+    if (favEl) favEl.textContent = firstAct.values?.name || '🌱 Gardening';
+  }
+
+  savePassportToFirestore();
+  renderPassportPage();
+  saveState();
+  closePassportModal('passportActivityModal');
 }
 
 window.deletePassportEntry = function (entryId) {
@@ -1314,6 +1507,7 @@ let currentPatientUid = savedPatientUid === 'demo_patient_bora'
   : (savedPatientUid || '');
 let activeUnsubscribers = [];
 let isFirebaseOnline = false;
+let biomarkerRecords = [];
 let cloudCompletedEventIds = new Set();
 
 function localDayKey(date = new Date()) {
@@ -1412,6 +1606,7 @@ function formatRecordKindLabel(kind) {
     case 'medicineRecall': return 'Medication Recall';
     case 'routineRecall': return 'Daily Routine Recall';
     case 'episodicRecall': return 'Life Memories';
+    case 'culturalRecall': return 'North-East Memories';
     default: return kind || 'Cognitive Exercise';
   }
 }
@@ -1435,15 +1630,49 @@ function formatTimestamp(ts) {
 }
 
 function recalculateStability() {
-  if (!DEMO.recentActivity || !DEMO.recentActivity.length) return;
-  const correct = DEMO.recentActivity.filter(a => a.correct).length;
-  const pct = Math.round((correct / DEMO.recentActivity.length) * 100);
-  const scoreEl = document.querySelector('.stability-score .score-val');
-  if (scoreEl) scoreEl.textContent = `${pct}%`;
+  const records = DEMO.recentActivity || [];
+  const correct = records.filter(a => a.correct).length;
+  const pct = records.length ? Math.round((correct / records.length) * 100) : null;
+  const score = document.getElementById('cognitiveAccuracyValue');
+  const donut = document.getElementById('cognitiveAccuracyDonut');
+  const legend = document.getElementById('cognitiveAccuracyLegend');
+  if (score) score.textContent = pct === null ? '—' : `${pct}%`;
+  if (donut) donut.textContent = pct === null ? '—' : `${pct}%`;
+  if (legend) legend.textContent = pct === null
+    ? 'No synced exercise results yet'
+    : `${correct} of ${records.length} recent answers correct`;
+  const ring = document.getElementById('cognitiveAccuracyRing');
+  if (ring) ring.setAttribute('stroke-dashoffset', String(Math.round(276 * (1 - (pct || 0) / 100))));
+}
+
+function renderDigitalBiomarkers() {
+  const metrics = computeDigitalBiomarkers(biomarkerRecords);
+  const response = document.getElementById('biomarkerResponseTime');
+  const hint = document.getElementById('biomarkerHintTime');
+  const delayed = document.getElementById('biomarkerDelayedRecall');
+  const overviewResponse = document.getElementById('overviewResponseValue');
+  const overviewHints = document.getElementById('overviewHintValue');
+  if (overviewResponse) overviewResponse.textContent = metrics.responseTime.medianMs === null
+    ? '—' : `${(metrics.responseTime.medianMs / 1000).toFixed(1)}s`;
+  if (overviewHints) overviewHints.textContent = biomarkerRecords.length
+    ? (biomarkerRecords.reduce((sum, record) => sum + (Number.isFinite(record.hintsUsed) ? record.hintsUsed : 0), 0) / biomarkerRecords.length).toFixed(1)
+    : '—';
+  if (response) response.textContent = metrics.responseTime.medianMs === null
+    ? 'No synced answers yet'
+    : `Median ${(metrics.responseTime.medianMs / 1000).toFixed(1)} s across ${metrics.responseTime.count} answers`;
+  if (hint) hint.textContent = metrics.firstHintTime.medianMs === null
+    ? 'No tracked hint requests yet'
+    : `Median ${(metrics.firstHintTime.medianMs / 1000).toFixed(1)} s across ${metrics.firstHintTime.count} first hints`;
+  if (delayed) delayed.textContent = metrics.accuracyGap === null
+    ? 'No immediate and delayed video results yet'
+    : `Immediate ${metrics.immediate.accuracy}% (${metrics.immediate.count}); delayed ${metrics.delayed.accuracy}% (${metrics.delayed.count}); difference ${metrics.accuracyGap > 0 ? '+' : ''}${metrics.accuracyGap} percentage points. Groups are not paired by session.`;
 }
 
 function attachFirestoreListeners(patientUid) {
   if (!db || !patientUid) return;
+
+  biomarkerRecords = [];
+  renderDigitalBiomarkers();
 
   // Unsubscribe previous listeners
   activeUnsubscribers.forEach(unsub => {
@@ -1475,24 +1704,38 @@ function attachFirestoreListeners(patientUid) {
   try {
     const recordsRef = db.collection('patients').doc(patientUid).collection('records');
     const unsubRecords = recordsRef.orderBy('timestamp', 'desc').limit(20).onSnapshot(snapshot => {
+      biomarkerRecords = snapshot.docs.map(doc => doc.data());
+      renderDigitalBiomarkers();
+      if (snapshot.empty) {
+        DEMO.recentActivity = [];
+        DEMO.hintSparkline = [];
+        recalculateStability();
+        renderRecentActivity();
+        renderRecordsTable();
+        renderHintSparkline();
+        return;
+      }
       if (snapshot && !snapshot.empty) {
         const records = [];
         snapshot.forEach(doc => {
           const d = doc.data();
           records.push({
-            type: d.kind === 'familyRecognition' ? 'family' : d.kind === 'videoRecall' ? 'video' : d.kind === 'medicineRecall' ? 'medicine' : 'routine',
+            type: recordType(d.kind),
             label: formatRecordKindLabel(d.kind),
             correct: d.correct === true,
             hints: d.hintsUsed ?? 0,
+            responseMs: d.responseMs,
             time: formatTimestamp(d.timestamp),
             diff: d.difficulty === 1 ? 'easy' : d.difficulty === 3 ? 'hard' : 'medium'
           });
         });
         DEMO.recentActivity = records;
+        DEMO.hintSparkline = records.slice(0, 7).map(record => record.hints).reverse();
         recalculateStability();
         saveState();
         renderRecentActivity();
         renderRecordsTable();
+        renderHintSparkline();
         updateFirebaseBadge(true, 'Firebase: hiasaathi (Live)');
       }
     }, err => {
@@ -1563,6 +1806,16 @@ function attachFirestoreListeners(patientUid) {
   }
 }
 
+function recordType(kind) {
+  switch (kind) {
+    case 'familyRecognition': return 'family';
+    case 'videoRecall': return 'video';
+    case 'medicineRecall': return 'medicine';
+    case 'culturalRecall': return 'culture';
+    default: return 'routine';
+  }
+}
+
 async function claimPatientAccess(linkCode) {
   if (!db || !firebase.auth().currentUser) {
     throw new Error('Firebase is not signed in yet. Please try again.');
@@ -1609,29 +1862,40 @@ function pullFromFirestore() {
   if (statusEl) statusEl.textContent = 'Pulling data from Firestore...';
 
   db.collection('patients').doc(currentPatientUid).collection('records').orderBy('timestamp', 'desc').limit(20).get().then(snapshot => {
+    biomarkerRecords = snapshot.docs.map(doc => doc.data());
+    renderDigitalBiomarkers();
     if (!snapshot.empty) {
       const records = [];
       snapshot.forEach(doc => {
         const d = doc.data();
         records.push({
-          type: d.kind === 'familyRecognition' ? 'family' : d.kind === 'videoRecall' ? 'video' : d.kind === 'medicineRecall' ? 'medicine' : 'routine',
+          type: recordType(d.kind),
           label: formatRecordKindLabel(d.kind),
           correct: d.correct === true,
           hints: d.hintsUsed ?? 0,
+          responseMs: d.responseMs,
           time: formatTimestamp(d.timestamp),
           diff: d.difficulty === 1 ? 'easy' : d.difficulty === 3 ? 'hard' : 'medium'
         });
       });
       DEMO.recentActivity = records;
+      DEMO.hintSparkline = records.slice(0, 7).map(record => record.hints).reverse();
       recalculateStability();
       saveState();
       renderRecentActivity();
       renderRecordsTable();
+      renderHintSparkline();
       if (statusEl) statusEl.textContent = `✓ Fetched ${records.length} records from Firestore!`;
       alert(`✓ Successfully refreshed ${records.length} cognitive records from Firebase Firestore!`);
     } else {
+      DEMO.recentActivity = [];
+      DEMO.hintSparkline = [];
+      recalculateStability();
+      renderRecentActivity();
+      renderRecordsTable();
+      renderHintSparkline();
       if (statusEl) statusEl.textContent = `No records found in Firestore for ${currentPatientUid}.`;
-      alert(`No records currently in Firestore for ${currentPatientUid}. Click "Push Demo to Cloud" to seed!`);
+      alert(`No cognitive records yet for ${currentPatientUid}. Complete an exercise on the phone, then sync.`);
     }
   }).catch(err => {
     console.error('Pull error:', err);
@@ -1668,7 +1932,7 @@ function seedFirestoreWithDemoData() {
     batch.set(recRef, {
       schemaVersion: 1,
       id: `rec_${Date.now()}_${idx}`,
-      kind: rec.type === 'family' ? 'familyRecognition' : rec.type === 'video' ? 'videoRecall' : 'medicineRecall',
+      kind: rec.type === 'family' ? 'familyRecognition' : rec.type === 'video' ? 'videoRecall' : rec.type === 'culture' ? 'culturalRecall' : rec.type === 'routine' ? 'routineRecall' : 'medicineRecall',
       entryId: 'entry_seed',
       correct: rec.correct,
       responseMs: 3200 + idx * 350,

@@ -20,12 +20,20 @@ class SpeechService {
   bool _initialized = false;
   String _lastPartial = '';
 
+  // Android SpeechRecognizer error codes
+  // https://developer.android.com/reference/android/speech/SpeechRecognizer
+  static const _errorNoMatch = 7;
+  static const _errorSpeechTimeout = 6;
+  static const _errorRecognizerBusy = 8;
+
   Future<void> initialize() async {
     if (_initialized) return;
     try {
       final support = await getApplicationSupportDirectory();
       final legacyModels = Directory('${support.path}/assets/models');
-      if (await legacyModels.exists()) await legacyModels.delete(recursive: true);
+      if (await legacyModels.exists()) {
+        await legacyModels.delete(recursive: true);
+      }
     } catch (_) {}
     _speechChannel.setMethodCallHandler((call) async {
       if (_disposed) return;
@@ -33,14 +41,36 @@ class SpeechService {
       if (call.method == 'partial') {
         _lastPartial = text;
         transcripts.add(text);
-      } else if (call.method == 'final' && _finalResult?.isCompleted == false) {
+      } else if (call.method == 'final' &&
+          _finalResult?.isCompleted == false) {
         _limit?.cancel();
         final resultText =
             text.trim().isNotEmpty ? text.trim() : _lastPartial.trim();
         _finalResult!.complete(resultText);
-      } else if (call.method == 'error' && _finalResult?.isCompleted == false) {
+      } else if (call.method == 'error' &&
+          _finalResult?.isCompleted == false) {
+        // Distinguish transient errors (no speech / timeout / busy) from
+        // permanent failures.  For transient errors we prefer whatever
+        // partial text was captured so far; for permanent errors we also
+        // fall back to the partial to avoid silently dropping the turn.
+        final errorCode = int.tryParse(text) ?? -1;
         _limit?.cancel();
-        _finalResult!.complete(_lastPartial.trim());
+        final captured = _lastPartial.trim();
+        if (captured.isNotEmpty) {
+          // Use whatever the recognizer already heard.
+          _finalResult!.complete(captured);
+        } else if (errorCode == _errorNoMatch ||
+            errorCode == _errorSpeechTimeout ||
+            errorCode == _errorRecognizerBusy) {
+          // Transient, no speech detected — complete with empty so the
+          // caller can decide to retry or pause gracefully.
+          _finalResult!.complete('');
+        } else {
+          // Permanent error — surface it.
+          _finalResult!.completeError(
+            StateError('Speech recognition error: $errorCode'),
+          );
+        }
       }
     });
     _initialized = true;
